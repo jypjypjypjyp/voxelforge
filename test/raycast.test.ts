@@ -31,6 +31,19 @@ describe("renderView", () => {
     expect(top).not.toEqual(bottom);
   });
 
+  it("天空渐变方向：屏幕顶部为蓝色端 (184,209,242)", () => {
+    const g = new SparseVoxelGrid([8, 8, 8]);
+    const src = gridSource(g, () => "#000000");
+    const r = renderView(src, { view: "front", size: 32, axes: false });
+    const px = (x: number, y: number) => {
+      const o = (y * 32 + x) * 4;
+      return [r.rgba[o], r.rgba[o + 1], r.rgba[o + 2]];
+    };
+    const top = px(16, 2), bottom = px(16, 29);
+    expect(top[0]).toBeLessThan(bottom[0]); // 184 < 235
+    expect(top[2]).toBeLessThan(bottom[2]); // 242 < 250
+  });
+
   it("单体素：中心像素接近红色", () => {
     const { src } = singleRed();
     const r = renderView(src, { view: "iso", size: 64 });

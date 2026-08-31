@@ -194,7 +194,7 @@ export function renderView(src: VoxelSource, opts: RenderOpts = {}): { w: number
 
   const ground = useAxes ? buildGround(src) : null;
   const sky = (v: number): [number, number, number] => {
-    const t = Math.max(0, Math.min(1, v));
+    const t = Math.max(0, Math.min(1, -v)); // v=+1 屏幕顶 → 蓝 (184,209,242)
     return [184 + (235 - 184) * t, 209 + (242 - 209) * t, 242 + (250 - 242) * t];
   };
 
