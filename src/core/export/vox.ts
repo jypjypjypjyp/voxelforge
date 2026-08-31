@@ -8,6 +8,11 @@ function chunk(id: string, content: Buffer): Buffer {
   return Buffer.concat([head, content]);
 }
 
+function u8(v: number, name: string): number {
+  if (!Number.isInteger(v) || v < 0 || v > 255) throw new Error(`${name} 越界: ${v}（.vox 需 0..255 整数）`);
+  return v;
+}
+
 export function exportVox(
   size: [number, number, number],
   voxels: Array<[number, number, number, number]>,
@@ -22,10 +27,10 @@ export function exportVox(
   xyzi.writeInt32LE(voxels.length, 0);
   voxels.forEach(([x, y, z, idx], i) => {
     const o = 4 + i * 4;
-    xyzi.writeUInt8(Math.min(255, x), o);
-    xyzi.writeUInt8(Math.min(255, y), o + 1);
-    xyzi.writeUInt8(Math.min(255, z), o + 2);
-    xyzi.writeUInt8(Math.min(255, idx), o + 3);
+    xyzi.writeUInt8(u8(x, "x"), o);
+    xyzi.writeUInt8(u8(y, "y"), o + 1);
+    xyzi.writeUInt8(u8(z, "z"), o + 2);
+    xyzi.writeUInt8(u8(idx, "色号"), o + 3);
   });
 
   const rgba = Buffer.alloc(1024, 255);
@@ -69,6 +74,8 @@ export function verifyVox(buf: Buffer): {
     const id = buf.subarray(off, off + 4).toString("ascii");
     const contentLen = buf.readInt32LE(off + 4);
     const childrenLen = buf.readInt32LE(off + 8);
+    if (contentLen < 0 || childrenLen < 0) throw new Error(`chunk 长度非法: content=${contentLen} children=${childrenLen}`);
+    if (off + 12 + contentLen > buf.length) throw new Error(`chunk 内容越界: ${id}`);
     const content = buf.subarray(off + 12, off + 12 + contentLen);
     if (id === "SIZE") {
       size = [content.readInt32LE(0), content.readInt32LE(4), content.readInt32LE(8)];
@@ -76,6 +83,7 @@ export function verifyVox(buf: Buffer): {
       voxels = content.readInt32LE(0);
       if (content.length !== 4 + 4 * voxels) throw new Error(`XYZI 长度不一致: ${content.length} vs 4+4*${voxels}`);
     } else if (id === "RGBA") {
+      if (content.length < 255 * 4) throw new Error(`RGBA chunk 截断: ${content.length}B`);
       palette = [];
       for (let i = 0; i < 255; i++) {
         palette.push([content[i * 4], content[i * 4 + 1], content[i * 4 + 2], content[i * 4 + 3]]);

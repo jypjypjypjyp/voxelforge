@@ -22,4 +22,22 @@ describe("exportVox / verifyVox", () => {
   it("verifyVox 拒绝坏数据", () => {
     expect(() => verifyVox(Buffer.from("junk"))).toThrow();
   });
+
+  it("verifyVox 拒绝负长度 chunk（防死循环）", () => {
+    const buf = exportVox([4, 4, 4], [], new Map());
+    // 篡改第一个子 chunk 的 contentLen 为负
+    buf.writeInt32LE(-100, 8 + 12 + 4);
+    expect(() => verifyVox(buf)).toThrow(/长度非法/);
+  });
+
+  it("verifyVox 拒绝截断的 RGBA", () => {
+    const full = exportVox([4, 4, 4], [[0, 0, 0, 1]], new Map([[1, "#8b4513"]]));
+    const truncated = full.subarray(0, full.length - 4);
+    expect(() => verifyVox(truncated)).toThrow(/越界|截断/);
+  });
+
+  it("exportVox 拒绝越界坐标与色号", () => {
+    expect(() => exportVox([4, 4, 4], [[300, 0, 0, 1]], new Map())).toThrow(/x 越界/);
+    expect(() => exportVox([4, 4, 4], [[0, 0, 0, 300]], new Map())).toThrow(/色号 越界/);
+  });
 });
