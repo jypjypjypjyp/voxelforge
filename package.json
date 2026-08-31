@@ -1,0 +1,30 @@
+{
+  "name": "voxelforge",
+  "version": "0.1.0",
+  "description": "LLM-native 3D voxel modeling: core + MCP server + web viewer",
+  "type": "module",
+  "engines": { "node": ">=20" },
+  "bin": { "voxelforge": "dist/cli.js", "voxelforge-mcp": "dist/mcp.js" },
+  "exports": {
+    ".": "./dist/index.js",
+    "./core": "./dist/core/index.js",
+    "./mcp": "./dist/mcp/server.js"
+  },
+  "files": ["dist", "README.md"],
+  "scripts": {
+    "build": "tsc -p tsconfig.json && node scripts/build-viewer.mjs",
+    "test": "vitest run",
+    "watch": "vitest"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.0",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^22.5.0",
+    "esbuild": "^0.23.1",
+    "three": "^0.169.0",
+    "typescript": "^5.5.4",
+    "vitest": "^2.1.1"
+  }
+}
