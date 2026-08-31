@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { SparseVoxelGrid } from "../src/core/grid.js";
-import { placeBox, placeLine } from "../src/core/ops.js";
+import { placeBox, placeLine, placeSphere, placeCylinder } from "../src/core/ops.js";
 
 describe("placeBox", () => {
   it("实心 2x3x4 = 24，返回计数与 bounds", () => {
@@ -80,5 +80,59 @@ describe("placeLine", () => {
     expect(() => placeLine(g, 0, 0, 0, 10, 0, 0, 1)).not.toThrow();
     expect(g.get(3, 0, 0)).toBe(1);
     expect(g.get(4, 0, 0)).toBeUndefined();
+  });
+});
+
+describe("placeSphere", () => {
+  it("r=2 实心 33 体素", () => {
+    const g = new SparseVoxelGrid([16, 16, 16]);
+    const s = placeSphere(g, 8, 8, 8, 2, 1);
+    expect(s.added).toBe(33);
+    expect(g.get(8, 8, 8)).toBe(1);
+    expect(g.get(10, 8, 8)).toBe(1);  // d²=4 ≤ 4
+    expect(g.get(11, 8, 8)).toBeUndefined();
+  });
+
+  it("r=2 hollow 26 体素（挖掉完全内埋的 7 个：球心+6轴邻）", () => {
+    const g = new SparseVoxelGrid([16, 16, 16]);
+    placeSphere(g, 8, 8, 8, 2, 1, { hollow: true });
+    expect(g.count).toBe(26);
+    expect(g.get(8, 8, 8)).toBeUndefined();
+    expect(g.get(10, 8, 8)).toBe(1);
+  });
+});
+
+describe("placeCylinder", () => {
+  it("axis=y r=2 h=3 共 39 体素（圆盘 13 × 3 层）", () => {
+    const g = new SparseVoxelGrid([16, 16, 16]);
+    const s = placeCylinder(g, 8, 4, 8, 2, 3, 1);
+    expect(s.added).toBe(39);
+    expect(g.get(8, 4, 8)).toBe(1);
+    expect(g.get(10, 5, 8)).toBe(1);
+    expect(g.get(8, 7, 8)).toBeUndefined(); // h=3 → y ∈ [4,7)
+  });
+
+  it("axis=y hollow r=2 h=3 = 34（中段内埋 5 个被挖）", () => {
+    const g = new SparseVoxelGrid([16, 16, 16]);
+    placeCylinder(g, 8, 4, 8, 2, 3, 1, { hollow: true });
+    expect(g.count).toBe(34);
+    expect(g.get(8, 5, 8)).toBeUndefined(); // 中段轴心
+    expect(g.get(8, 4, 8)).toBe(1);          // 底盖保留（壳）
+  });
+
+  it("axis=x 沿 x 延伸", () => {
+    const g = new SparseVoxelGrid([16, 16, 16]);
+    const s = placeCylinder(g, 4, 8, 8, 1, 3, 1, { axis: "x" });
+    expect(s.added).toBe(15); // r=1 圆盘 5 × 3
+    expect(g.get(4, 8, 8)).toBe(1);
+    expect(g.get(6, 8, 8)).toBe(1);
+    expect(g.get(7, 8, 8)).toBeUndefined();
+  });
+
+  it("mirror 对称", () => {
+    const g = new SparseVoxelGrid([16, 16, 16]);
+    placeCylinder(g, 4, 0, 4, 1, 2, 1, { mirror: ["x"] });
+    expect(g.get(4, 0, 4)).toBe(1);
+    expect(g.get(11, 0, 4)).toBe(1); // 16-1-4=11
   });
 });

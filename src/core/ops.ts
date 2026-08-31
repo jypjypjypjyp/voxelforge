@@ -121,3 +121,52 @@ export function placeLine(
   }
   return stats(g, added, 0);
 }
+
+class SphereShape extends Shape {
+  constructor(private cx: number, private cy: number, private cz: number, private r: number) { super(); }
+  inside(x: number, y: number, z: number): boolean {
+    const dx = x - this.cx, dy = y - this.cy, dz = z - this.cz;
+    return dx * dx + dy * dy + dz * dz <= this.r * this.r;
+  }
+}
+
+export function placeSphere(
+  g: SparseVoxelGrid, cx: number, cy: number, cz: number,
+  r: number, idx: number, opts: PlaceOpts = {}
+): ChangeStats {
+  const r0 = Math.ceil(r);
+  const region: Region = [cx - r0, cy - r0, cz - r0, cx + r0, cy + r0, cz + r0];
+  return placeShape(g, new SphereShape(cx, cy, cz, r), region, idx, opts);
+}
+
+class CylinderShape extends Shape {
+  constructor(
+    private cx: number, private cy: number, private cz: number,
+    private r: number, private h: number, private axis: Axis
+  ) { super(); }
+  inside(x: number, y: number, z: number): boolean {
+    const a = this.axis;
+    const c = a === "x" ? this.cx : a === "y" ? this.cy : this.cz;
+    const v = a === "x" ? x : a === "y" ? y : z;
+    if (v < c || v >= c + this.h) return false;
+    const [p, q] = a === "x" ? [y - this.cy, z - this.cz] : a === "y" ? [x - this.cx, z - this.cz] : [x - this.cx, y - this.cy];
+    return p * p + q * q <= this.r * this.r;
+  }
+}
+
+export interface CylinderOpts extends PlaceOpts { axis?: Axis }
+
+export function placeCylinder(
+  g: SparseVoxelGrid, cx: number, cy: number, cz: number,
+  r: number, h: number, idx: number, opts: CylinderOpts = {}
+): ChangeStats {
+  const axis = opts.axis ?? "y";
+  if (!Number.isInteger(h) || h < 1) throw new Error(`h 必须为 ≥1 的整数: ${h}`);
+  const r0 = Math.ceil(r);
+  const region: Region = axis === "x"
+    ? [cx, cy - r0, cz - r0, cx + h - 1, cy + r0, cz + r0]
+    : axis === "y"
+      ? [cx - r0, cy, cz - r0, cx + r0, cy + h - 1, cz + r0]
+      : [cx - r0, cy - r0, cz, cx + r0, cy + r0, cz + h - 1];
+  return placeShape(g, new CylinderShape(cx, cy, cz, r, h, axis), region, idx, opts);
+}
