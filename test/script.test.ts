@@ -50,4 +50,15 @@ describe("runScript", () => {
     expect(() => runScript(g, new Palette(), `box(0,0,0,99,1,1,"#ff0000")`)).toThrow();
     expect(g.count).toBe(0);
   });
+
+  it("line 反向端点+thickness 越界也抛错回滚", () => {
+    const g = new SparseVoxelGrid([8, 8, 8]);
+    expect(() => runScript(g, new Palette(), `line(3,0,0,-1,0,0,"#ff0000",{thickness:3})`)).toThrow(/已回滚/);
+    expect(g.count).toBe(0);
+  });
+
+  it("小数半径 sphere 贴边不误报", () => {
+    const g = new SparseVoxelGrid([8, 8, 8]);
+    expect(() => runScript(g, new Palette(), `sphere(5,5,5,2.5,"#ff0000")`)).not.toThrow();
+  });
 });

@@ -43,13 +43,13 @@ export function runScript(
       return placeBox(grid, x0, y0, z0, x1, y1, z1, idx(hex), opts);
     }),
     sphere: track((cx: number, cy: number, cz: number, r: number, hex: string, opts?: object) => {
-      const r0 = Math.ceil(r);
+      const r0 = Math.floor(r);
       checkRegion([cx - r0, cy - r0, cz - r0, cx + r0, cy + r0, cz + r0]);
       return placeSphere(grid, cx, cy, cz, r, idx(hex), opts);
     }),
     cylinder: track((cx: number, cy: number, cz: number, r: number, h: number, hex: string, opts?: object) => {
       const axis = (opts as { axis?: "x" | "y" | "z" } | undefined)?.axis ?? "y";
-      const r0 = Math.ceil(r);
+      const r0 = Math.floor(r);
       checkRegion(axis === "x"
         ? [cx, cy - r0, cz - r0, cx + h - 1, cy + r0, cz + r0]
         : axis === "y"
@@ -59,7 +59,7 @@ export function runScript(
     }),
     line: track((x0: number, y0: number, z0: number, x1: number, y1: number, z1: number, hex: string, opts?: object) => {
       const t = Math.max(1, Math.round((opts as { thickness?: number } | undefined)?.thickness ?? 1));
-      checkRegion([x0, y0, z0, x1 + t - 1, y1 + t - 1, z1 + t - 1]);
+      checkRegion([Math.min(x0, x1), Math.min(y0, y1), Math.min(z0, z1), Math.max(x0, x1) + t - 1, Math.max(y0, y1) + t - 1, Math.max(z0, z1) + t - 1]);
       return placeLine(grid, x0, y0, z0, x1, y1, z1, idx(hex), opts);
     }),
     set: (x: number, y: number, z: number, hex: string) => {
