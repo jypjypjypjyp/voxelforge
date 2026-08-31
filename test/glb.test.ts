@@ -88,4 +88,9 @@ describe("GLB 导出与结构闸门", () => {
   it("verifyGlb 拒绝坏数据", () => {
     expect(() => verifyGlb(Buffer.from("not a glb"))).toThrow();
   });
+
+  it("空网格导出被拒绝（非法 min/max）", () => {
+    const empty: MeshData = { positions: new Float32Array(0), normals: new Float32Array(0), colors: new Float32Array(0), indices: new Uint32Array(0) };
+    expect(() => exportGlb(empty)).toThrow(/空网格/);
+  });
 });

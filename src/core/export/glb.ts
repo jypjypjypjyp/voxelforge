@@ -1,6 +1,7 @@
 import type { MeshData } from "./mesh.js";
 
 export function exportGlb(mesh: MeshData): Buffer {
+  if (mesh.positions.length === 0) throw new Error("空网格无法导出 GLB（无顶点）");
   const binParts: Buffer[] = [];
   const views: Array<Record<string, number>> = [];
   const accessors: Array<Record<string, unknown>> = [];
@@ -88,11 +89,19 @@ export function verifyGlb(buf: Buffer): { tris: number; materials: number; json:
     throw new Error("chunk1 类型应为 BIN\\0");
   }
   const mesh = (json.meshes as Array<Record<string, any>>)?.[0];
-  const accessors = json.accessors as Array<{ count: number }>;
+  const accessors = json.accessors as Array<{ count: number; min?: unknown[]; max?: unknown[] }>;
   let tris = 0;
   for (const prim of mesh?.primitives ?? []) {
     tris += accessors[prim.indices].count / 3;
   }
   const materials = (json.materials as unknown[])?.length ?? 0;
+  const prims = mesh?.primitives ?? [];
+  for (const prim of prims) {
+    const posAcc = accessors[prim.attributes?.POSITION];
+    if (!posAcc || !Array.isArray(posAcc.min) || !posAcc.min.every((n: unknown) => typeof n === "number") ||
+        !Array.isArray(posAcc.max) || !posAcc.max.every((n: unknown) => typeof n === "number")) {
+      throw new Error("POSITION accessor 缺少有效 min/max");
+    }
+  }
   return { tris, materials, json };
 }
