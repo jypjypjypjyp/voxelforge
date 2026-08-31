@@ -3,3 +3,4 @@ export * from "./grid.js";
 export * from "./palette.js";
 export * from "./project.js";
 export * from "./ops.js";
+export * from "./script.js";
