@@ -14,7 +14,7 @@ node dist/cli.js serve model.voxel.json   # 浏览器打开 http://127.0.0.1:417
 
 ```bash
 node examples/build-castle.mjs
-# 产出 examples/castle.voxel.json / castle.glb / castle.multi.png
+# 产出 examples/castle.voxel.json / castle.glb / castle.multi.png / castle.cutaway.png
 ```
 
 ## 接入 MCP 客户端（如 Claude Desktop / 任意支持 MCP 的宿主）
@@ -48,6 +48,6 @@ render 还支持 `--yaw/--pitch/--out/--size/--proj/--axes=false` 等参数，�
 
 ## 注意事项
 
-- **script() 沙箱严格界内校验**：沙箱内所有坐标（含 box/sphere/cylinder/line 的包围范围、translate 目标）必须完全落在项目尺寸内，任一点越界即整体报错并自动回滚，不会留下半成品。写循环批量生成前先核对边界。
+- **script() 沙箱**：`box/sphere/cylinder/line` 区域要求**完全在界内**（越界整体报错并自动回滚），`set` 越界同样报错；`translate/paint/erase` 沿用区域操作语义（源区域越界静默裁剪，translate 目标出界/被占的体素被丢弃），`unset` 越界为无操作。
 - **render_png 坐标参照层默认策略**：单视图（`view`/`yaw+pitch`）默认开启地面参照层（红 X 轴 / 蓝 Z 轴刻度），`views:"multi"` 合成图默认关闭（避免轴红线与 highlight 红框语义冲突）；两种情况都可用 `axes` 参数显式覆盖。
 - **调色板 255 色上限 + paint 防幻影**：调色板最多 255 色，写满后需复用已有颜色或用 paint 换色；`paint` 的 `from` 参数是防幻影过滤——指定的 `from` 颜色若不在调色板中会直接报错（而不是静默零换色），省略 `from` 则对区域内全部换色。
