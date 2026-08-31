@@ -27,7 +27,7 @@ async function main(): Promise<number> {
     allowPositionals: true,
     strict: false,
     options: {
-      size: { type: "string", default: "64" },
+      size: { type: "string" },
       force: { type: "boolean", default: false },
       port: { type: "string", default: "4173" },
       glb: { type: "string" },
@@ -49,7 +49,8 @@ async function main(): Promise<number> {
 
   if (cmd === "new") {
     if (!file) throw new Error("缺 <file>");
-    const size = Number(values.size);
+    const size = Number(values.size ?? "64");
+    if (!Number.isInteger(size) || size < 1 || size > 256) throw new Error(`size 需为 1..256 整数: ${values.size}`);
     if (fs.existsSync(file) && !values.force) throw new Error(`已存在: ${file}（--force 覆盖）`);
     const p = emptyProject([size, size, size]);
     fs.writeFileSync(file, JSON.stringify(p));

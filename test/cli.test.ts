@@ -30,6 +30,21 @@ describe("cli（需先 pnpm build）", () => {
     expect(readFileSync(join(dir, "shot.png")).subarray(0, 4)).toEqual(Buffer.from([0x89, 0x50, 0x4e, 0x47]));
   });
 
+  it("render 默认 512 与 new size 校验", () => {
+    if (skip) return;
+    const dir = mkdtempSync(join(tmpdir(), "vf-"));
+    const file = join(dir, "m.voxel.json");
+    run(["new", file, "--size", "8"]);
+    run(["export", file, "--glb", join(dir, "o.glb")]); // 确保有产物可渲染（空模型也可）
+    const r = run(["render", file, "--out", join(dir, "shot.png")]);
+    expect(r.status).toBe(0);
+    const buf = readFileSync(join(dir, "shot.png"));
+    expect(buf.readUInt32BE(16)).toBe(512); // IHDR width
+    const bad = run(["new", join(dir, "bad.voxel.json"), "--size", "abc"]);
+    expect(bad.status).toBe(1);
+    expect(bad.stderr).toContain("1..256");
+  });
+
   // serve 的 HTTP 行为已由 test/viewer.test.ts 覆盖；cli 侧只做 help 冒烟
   it("help", () => {
     if (skip) return;
