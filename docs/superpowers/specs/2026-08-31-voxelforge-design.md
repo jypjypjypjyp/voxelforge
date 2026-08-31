@@ -41,7 +41,7 @@ voxelforge/
 - **工具接口传十六进制色值**（如 `#8B4513`），引擎自动分配/复用调色板号，LLM 不管理索引。
 - 坐标系：x 右、y 上、z 前（three.js 右手系一致）。
 
-## MCP 工具集（15 个）
+## MCP 工具集（18 个）
 
 启动：`voxelforge-mcp <model.voxel.json>`（stdio；文件不存在则空项目待 `create_project`）。每次变更工具调用后**自动落盘**，返回计数摘要（如 `box: +48, total 1234, bounds 0..15`），LLM 无需读全网格即可校验。
 
@@ -59,13 +59,32 @@ voxelforge/
 | `translate(region, dx,dy,dz)` | 平移区域内体素（出界丢弃） |
 | `undo()` | 撤销（内存快照栈，最近 20 步） |
 | `sample(x,y,z)` | 读回单点颜色（LLM 验证用） |
+| `slice_ascii(axis, index, region?)` | 层字符画：`.`=空 `A-Z`/`a-z`=调色板号，附坐标标尺；LLM 空间定位的最便宜反馈通道（64² 层 ≈1-2k token） |
+| `check()` | 自诊断：悬空体素数、连通分量数、各轴对称差异数、每轴 occupancy 剖面（一眼看出空层/断层） |
+| `script(code)` | 程序化批量生成：node:vm 沙箱跑一段 JS（暴露 ops API：box/sphere/…/set/unset），限时 5s、指令数上限、执行前自动快照、异常自动回滚；发挥 LLM 代码生成优势（循环/噪声/数学一次成型） |
 | `export(format: "glb"\|"vox", path?)` | 导出文件，返回结构校验摘要 |
-| `render_png(yaw, pitch, path?, size?, proj?)` | 渲染 PNG 供视觉自检（proj: ortho 默认/persp） |
+| `render_png(view?, yaw?, pitch?, path?, size?, proj?, cutaway?, highlight?)` | 多模态自检渲染，详见下节 |
 
 - `mirror?: ["x"|"y"|"z"]`：对每个轴，镜像平面为该轴中点，坐标映射 `v → size[axis]-1-v`，每次放置同时在镜像位置复制一份（与原位重叠只写一次）。
 - `region` 统一用扁平六元组 `[x0,y0,z0,x1,y1,z1]`（含两端，min>max 自动纠正）。
 - `paint` 语义：`region` 省略 = 全网格；`from` 省略 = 区域内全部体素换色；`from` 给定（hex）= 仅替换该颜色；`to`（hex）为目标色。
 - 所有工具入参经 zod 校验，越界坐标报错信息含合法范围。
+
+### render_png 多模态套件（针对多模态 LLM 的视觉自检）
+
+- `view?: "iso"|"front"|"side"|"top"` 视角预设（iso 默认 = yaw 45°/pitch 30°），也可手动 `yaw`/`pitch`。
+- `views: "multi"`：一次输出三视图合成图（iso+front+side 拼一张），省 2/3 图像 token 与往返轮次。
+- **坐标参照层**（默认开启，`axes: false` 关）：10 格网格线 + X/Z 轴色标（红/蓝）+ 刻度数字——解决多模态模型"看得见问题、说不出坐标"的 grounding 缺陷。
+- `cutaway?: "x"|"y"|"z"|"quarter"`：剖切渲染，检查壳体内部与空洞。
+- `highlight?: region`：区域描红框——LLM 从图中发现问题后直接回传该区域修改，形成"看图 → 定位 → 修改"闭环。
+
+### LLM-native 设计原则（贯穿工具集）
+
+1. **token 经济**：默认只回摘要（计数/bounds）；反馈通道按成本分层——sample（单点）→ slice_ascii（一层字符画）→ render_png（图像，多视图合一）。
+2. **LLM 算对不数对**：精确计数/包围盒/诊断全部由工具算好返回，LLM 只做比较与决策，不做算术。
+3. **代码优于逐点调用**：`script()` 让 LLM 用循环/数学/噪声批量生成，替代几十次几何工具调用；沙箱限时 + 异常自动回滚，失败不留脏状态。
+4. **自我修正靠可执行反馈**：`check()` 给出悬空/连通/对称/空层的客观信号，配合 `undo()` 快照兜底。
+5. **few-shot 内建**：建模方法论（先骨架后细节、对称优先、每完成一个结构就 check/render 校验）写进 MCP server `instructions` 字段（协议原生支持，不占工具位）；每个工具 description 内嵌一个调用示例。
 
 ## Web Viewer（实时监听）
 
@@ -91,7 +110,10 @@ voxelforge/
 - project roundtrip：save → load 相等
 - GLB 结构闸门：魔数/版本/chunk 布局/三角形计数
 - .vox 结构校验：chunk 顺序与字节数
-- PNG 冒烟：非空、尺寸正确、存在非背景像素
+- PNG 冒烟：非空、尺寸正确、存在非背景像素；multi 合成图尺寸 = 三张并排；highlight 框像素存在
+- slice_ascii：图例字符与调色板对应、标尺行存在
+- check：构造悬空/断开/不对称场景，断言各项数值
+- script：正常执行落盘、超时中断、异常回滚（文件回到执行前状态）
 - MCP server 集成：直调 tool handlers，断言文件落盘与返回摘要
 
 ## CLI
@@ -100,7 +122,7 @@ voxelforge/
 voxelforge new <file> [--size 64] [--force]
 voxelforge serve <file> [--port 4173]
 voxelforge export <file> --glb out.glb | --vox out.vox
-voxelforge render <file> --yaw 45 --pitch 30 [--out shot.png] [--size 512] [--proj ortho|persp]
+voxelforge render <file> [--view iso|front|side|top] [--multi] [--cutaway x|y|z|quarter] [--yaw 45 --pitch 30] [--out shot.png] [--size 512] [--proj ortho|persp] [--no-axes]
 voxelforge-mcp <file>            # stdio MCP server
 ```
 
@@ -109,8 +131,9 @@ voxelforge-mcp <file>            # stdio MCP server
 1. `pnpm install && pnpm build && pnpm test` 全绿。
 2. MCP 客户端挂载 `voxelforge-mcp` 后，用工具建示例模型（小城堡），每步返回计数正确、文件实时落盘。
 3. `serve` 打开浏览器，MCP 工具操作后 ≤ 1s 自动更新且相机不跳。
-4. GLB 过结构闸门且可在通用 GLTF viewer 加载；PNG 三视角目检通过（用 read_image 实际验证）。
-5. `render_png` 输出可独立用于 LLM 自检闭环（结构 → 视觉 → 精修）。
+4. GLB 过结构闸门且可在通用 GLTF viewer 加载；PNG 目检通过（用 read_image 实际验证，含 multi 三视图合成 + 坐标参照层）。
+5. LLM 自检闭环走通：check → slice_ascii 定位 → render_png(highlight) 视觉确认 → 修改 → check 归零，全程工具反馈可执行。
+6. `script()` 用一段代码生成程序化模型（如随机星体/松树林），超时与异常回滚验证通过。
 
 ## 非目标（v1 明确不做）
 
