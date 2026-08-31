@@ -106,6 +106,30 @@ describe("ForgeSession", () => {
     expect(Object.keys(raw.palette).length).toBe(0);
   });
 
+  it("set 越界失败：无 stale undo、无幻影调色板落盘", async () => {
+    const s = new ForgeSession(file);
+    await s.init();
+    await s.handle("create_project", { size: [8, 8, 8] });
+    await s.handle("box", { x0: 0, y0: 0, z0: 0, x1: 1, y1: 1, z1: 1, color: "#ff0000" });
+    await expect(s.handle("set", { x: 99, y: 0, z: 0, color: "#00ff00" })).rejects.toThrow(/越界/);
+    // undo 恢复到最近一次真实变更（box 之前的状态），而非空转死槽
+    await s.handle("undo", {});
+    const raw = JSON.parse(await readFile(file, "utf8"));
+    expect(Object.keys(raw.voxels).length).toBe(0); // undo 到 create_project 后
+    expect(Object.keys(raw.palette).length).toBe(0); // 无幻影 #00ff00 落盘
+  });
+
+  it("box 非法 hex 失败：无 stale undo", async () => {
+    const s = new ForgeSession(file);
+    await s.init();
+    await s.handle("create_project", { size: [8, 8, 8] });
+    await s.handle("box", { x0: 0, y0: 0, z0: 0, x1: 1, y1: 1, z1: 1, color: "#ff0000" });
+    await expect(s.handle("box", { x0: 0, y0: 0, z0: 0, x1: 1, y1: 1, z1: 1, color: "not-a-color" })).rejects.toThrow();
+    await s.handle("undo", {});
+    const raw = JSON.parse(await readFile(file, "utf8"));
+    expect(Object.keys(raw.voxels).length).toBe(0);
+  });
+
   it("export glb/vox 落盘且摘要含结构校验", async () => {
     const s = new ForgeSession(file);
     await s.init();

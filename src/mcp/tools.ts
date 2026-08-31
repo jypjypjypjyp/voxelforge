@@ -85,9 +85,11 @@ export class ForgeSession {
     return TOOLS;
   }
 
-  private pushUndo(): void {
-    this.undoStack.push({ g: this.grid.snapshot(), p: this.palette.snapshot() });
+  private pushUndo(): { g: Map<string, number>; p: [string[], Map<string, number>] } {
+    const snap = { g: this.grid.snapshot(), p: this.palette.snapshot() };
+    this.undoStack.push(snap);
     if (this.undoStack.length > 20) this.undoStack.shift();
+    return snap;
   }
 
   private stats(name: string, s: ChangeStats): string {
@@ -128,14 +130,29 @@ export class ForgeSession {
         return { content: `size: ${this.grid.size.join("x")}\nvoxels: ${this.grid.count}\npalette (${this.palette.size}): ${palStr}\nbounds: ${fmtBounds(b)}\n每色计数: ${counts || "（空）"}` };
       }
       case "set": {
-        this.pushUndo();
-        this.grid.set(a.x, a.y, a.z, this.palette.indexOf(a.color));
+        const snap = this.pushUndo();
+        try {
+          const idx = this.palette.indexOf(a.color);
+          this.grid.set(a.x, a.y, a.z, idx);
+        } catch (e) {
+          // 失败不占 undo 栈，且回滚 indexOf 可能已分配的调色板条目（否则幻影色号随下次保存落盘）
+          this.undoStack.pop();
+          this.palette.restore(snap.p);
+          throw e;
+        }
         await saveForge(this.file, this.grid, this.palette);
         return { content: `set (${a.x},${a.y},${a.z})=${a.color}, total ${this.grid.count}` };
       }
       case "unset": {
-        this.pushUndo();
-        const ok = this.grid.unset(a.x, a.y, a.z);
+        const snap = this.pushUndo();
+        let ok: boolean;
+        try {
+          ok = this.grid.unset(a.x, a.y, a.z);
+        } catch (e) {
+          this.undoStack.pop();
+          this.palette.restore(snap.p);
+          throw e;
+        }
         await saveForge(this.file, this.grid, this.palette);
         return { content: ok ? `unset (${a.x},${a.y},${a.z}), total ${this.grid.count}` : `(${a.x},${a.y},${a.z}) 本来为空, total ${this.grid.count}` };
       }
@@ -143,14 +160,20 @@ export class ForgeSession {
       case "sphere":
       case "cylinder":
       case "line": {
-        this.pushUndo();
-        const idx = this.palette.indexOf(a.color);
-        const opts: PlaceOpts = { hollow: a.hollow, mirror: a.mirror };
+        const snap = this.pushUndo();
         let s: ChangeStats;
-        if (name === "box") s = placeBox(this.grid, a.x0, a.y0, a.z0, a.x1, a.y1, a.z1, idx, opts);
-        else if (name === "sphere") s = placeSphere(this.grid, a.cx, a.cy, a.cz, a.r, idx, opts);
-        else if (name === "cylinder") s = placeCylinder(this.grid, a.cx, a.cy, a.cz, a.r, a.h, idx, { ...opts, axis: a.axis } as CylinderOpts);
-        else s = placeLine(this.grid, a.x0, a.y0, a.z0, a.x1, a.y1, a.z1, idx, { ...opts, thickness: a.thickness } as LineOpts);
+        try {
+          const idx = this.palette.indexOf(a.color);
+          const opts: PlaceOpts = { hollow: a.hollow, mirror: a.mirror };
+          if (name === "box") s = placeBox(this.grid, a.x0, a.y0, a.z0, a.x1, a.y1, a.z1, idx, opts);
+          else if (name === "sphere") s = placeSphere(this.grid, a.cx, a.cy, a.cz, a.r, idx, opts);
+          else if (name === "cylinder") s = placeCylinder(this.grid, a.cx, a.cy, a.cz, a.r, a.h, idx, { ...opts, axis: a.axis } as CylinderOpts);
+          else s = placeLine(this.grid, a.x0, a.y0, a.z0, a.x1, a.y1, a.z1, idx, { ...opts, thickness: a.thickness } as LineOpts);
+        } catch (e) {
+          this.undoStack.pop();
+          this.palette.restore(snap.p);
+          throw e;
+        }
         await saveForge(this.file, this.grid, this.palette);
         return { content: this.stats(name, s) };
       }
@@ -183,15 +206,29 @@ export class ForgeSession {
         return { content: `paint: ${s.added} 处换色, total ${s.total}, bounds ${fmtBounds(s.bounds)}` };
       }
       case "erase": {
-        this.pushUndo();
-        const s = eraseRegion(this.grid, a.region === "all" ? "all" : a.region as Region);
+        const snap = this.pushUndo();
+        let s: ChangeStats;
+        try {
+          s = eraseRegion(this.grid, a.region === "all" ? "all" : a.region as Region);
+        } catch (e) {
+          this.undoStack.pop();
+          this.palette.restore(snap.p);
+          throw e;
+        }
         await saveForge(this.file, this.grid, this.palette);
         // erase 只减不增，摘要只报擦除数
         return { content: `erase: -${s.removed}, total ${s.total}, bounds ${fmtBounds(s.bounds)}` };
       }
       case "translate": {
-        this.pushUndo();
-        const s = translateRegion(this.grid, a.region as Region, a.dx, a.dy, a.dz);
+        const snap = this.pushUndo();
+        let s: ChangeStats;
+        try {
+          s = translateRegion(this.grid, a.region as Region, a.dx, a.dy, a.dz);
+        } catch (e) {
+          this.undoStack.pop();
+          this.palette.restore(snap.p);
+          throw e;
+        }
         await saveForge(this.file, this.grid, this.palette);
         return { content: this.stats("translate", s) };
       }
