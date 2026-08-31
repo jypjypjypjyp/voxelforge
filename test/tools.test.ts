@@ -86,6 +86,26 @@ describe("ForgeSession", () => {
     expect(e.content).toMatch(/erase: -8/);
   });
 
+  it("paint from 不在调色板报错且不落盘", async () => {
+    const s = new ForgeSession(file);
+    await s.init();
+    await s.handle("create_project", { size: [8, 8, 8] });
+    await s.handle("box", { x0: 0, y0: 0, z0: 0, x1: 1, y1: 1, z1: 1, color: "#ff0000" });
+    const before = JSON.parse(await readFile(file, "utf8"));
+    await expect(s.handle("paint", { region: [0, 0, 0, 1, 1, 1], from: "#00ff00", color: "#0000ff" })).rejects.toThrow(/不在调色板/);
+    expect(JSON.parse(await readFile(file, "utf8"))).toEqual(before); // 文件未变
+  });
+
+  it("paint 空区域不创建调色板条目", async () => {
+    const s = new ForgeSession(file);
+    await s.init();
+    await s.handle("create_project", { size: [8, 8, 8] });
+    const r = await s.handle("paint", { region: [5, 5, 5, 7, 7, 7], color: "#123456" });
+    expect(r.content).toContain("0 处换色");
+    const raw = JSON.parse(await readFile(file, "utf8"));
+    expect(Object.keys(raw.palette).length).toBe(0);
+  });
+
   it("export glb/vox 落盘且摘要含结构校验", async () => {
     const s = new ForgeSession(file);
     await s.init();

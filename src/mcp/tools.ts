@@ -5,7 +5,7 @@ import { Palette } from "../core/palette.js";
 import { loadForge, saveForge } from "../core/project.js";
 import {
   placeBox, placeSphere, placeCylinder, placeLine,
-  paintRegion, eraseRegion, translateRegion,
+  paintRegion, eraseRegion, translateRegion, normRegion,
   type ChangeStats, type PlaceOpts, type CylinderOpts, type LineOpts
 } from "../core/ops.js";
 import { runScript } from "../core/script.js";
@@ -99,6 +99,15 @@ export class ForgeSession {
     return view ? `${base}.${view}.${ext}` : `${base}.${ext}`;
   }
 
+  // 防幻影查找：只查不分配（indexOf 缺色时会自动占用新的调色板条目）
+  private findPaletteIndex(hex: string): number | undefined {
+    const h = Palette.normalize(hex);
+    for (const [k, v] of Object.entries(this.palette.toRecord())) {
+      if (v === h) return Number(k);
+    }
+    return undefined;
+  }
+
   async handle(name: string, args: Record<string, unknown>): Promise<{ content: string }> {
     const a = args as Record<string, any>;
     switch (name) {
@@ -147,8 +156,28 @@ export class ForgeSession {
       }
       case "paint": {
         this.pushUndo();
-        const s = paintRegion(this.grid, a.region ?? null,
-          a.from ? this.palette.indexOf(a.from) : undefined, this.palette.indexOf(a.color));
+        // 防幻影：from 必须已在调色板中（indexOf 缺色会自动分配新条目）；to 仅在确有体素要改色时才分配
+        let fromIdx: number | undefined;
+        if (a.from !== undefined) {
+          fromIdx = this.findPaletteIndex(a.from);
+          if (fromIdx === undefined) {
+            this.undoStack.pop(); // 失败不占 undo 栈
+            throw new Error(`颜色 ${a.from} 不在调色板中，无法作为 from 过滤（可用 paint 不带 from 全局换色，或先 set 该颜色）`);
+          }
+        }
+        // 预检：区域内确有将被改色的体素才继续；否则早退（不落盘、不分配 to）
+        const r = a.region ? normRegion(a.region as Region) : null;
+        let hasTarget = false;
+        for (const [x, y, z, idx] of this.grid.coords()) {
+          if (r && (x < r[0] || y < r[1] || z < r[2] || x > r[3] || y > r[4] || z > r[5])) continue;
+          if (fromIdx === undefined || idx === fromIdx) { hasTarget = true; break; }
+        }
+        if (!hasTarget) {
+          this.undoStack.pop(); // 空操作不占 undo 栈
+          return { content: `paint: 0 处换色, total ${this.grid.count}` };
+        }
+        const toIdx = this.palette.indexOf(a.color);
+        const s = paintRegion(this.grid, a.region ?? null, fromIdx, toIdx);
         await saveForge(this.file, this.grid, this.palette);
         // paint 是换色而非增删，摘要不计 +/-，报换色处数
         return { content: `paint: ${s.added} 处换色, total ${s.total}, bounds ${fmtBounds(s.bounds)}` };
@@ -187,16 +216,17 @@ export class ForgeSession {
       }
       case "script": {
         this.pushUndo();
+        let r;
         try {
-          const r = runScript(this.grid, this.palette, a.code, a.timeoutMs ?? 5000);
-          await saveForge(this.file, this.grid, this.palette);
-          const logs = r.logs.length ? `\nlog: ${r.logs.join(" | ")}` : "";
-          return { content: `script: +${r.added} -${r.removed}, total ${r.total}${logs}` };
+          r = runScript(this.grid, this.palette, a.code, a.timeoutMs ?? 5000);
         } catch (e) {
-          // 失败不落盘（core runScript 已回滚 grid/palette）；弹回本次快照，失败脚本不占 undo 栈
+          // 仅 runScript 失败（core 已回滚 grid/palette）才弹栈；saveForge 失败时 grid 已有改动，须保留 undo
           this.undoStack.pop();
           throw e;
         }
+        await saveForge(this.file, this.grid, this.palette);
+        const logs = r.logs.length ? `\nlog: ${r.logs.join(" | ")}` : "";
+        return { content: `script: +${r.added} -${r.removed}, total ${r.total}${logs}` };
       }
       case "export": {
         if (a.format === "glb") {
