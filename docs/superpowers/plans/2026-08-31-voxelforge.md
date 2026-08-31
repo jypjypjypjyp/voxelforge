@@ -3295,22 +3295,17 @@ export const TOOLS: ToolDef[] = [
   { name: "sphere", description: "球体。示例: {cx:8,cy:8,cz:8,r:3,color:'#ff0000'}", schema: { cx: z.number().int(), cy: z.number().int(), cz: z.number().int(), r: z.number(), ...shapeCommon } },
   { name: "cylinder", description: "圆柱：底面圆心+半径+高，axis 默认 y。示例: {cx:4,cy:0,cz:4,r:2,h:6,color:'#7d8288'}", schema: { cx: z.number().int(), cy: z.number().int(), cz: z.number().int(), r: z.number(), h: z.number().int().min(1), axis: z.enum(["x", "y", "z"]).optional(), ...shapeCommon } },
   { name: "line", description: "线段（thickness=笔刷立方边长）。示例: {x0:0,y0:0,z0:0,x1:8,y1:4,z1:0,color:'#8B4513',thickness:2}", schema: { x0: z.number().int(), y0: z.number().int(), z0: z.number().int(), x1: z.number().int(), y1: z.number().int(), z1: z.number().int(), thickness: z.number().int().min(1).optional(), ...mirrorSchema, color: z.string() } },
-  { name: "paint", description: "换色：region 省略=全网格，from 省略=区域内全部。示例: {region:[0,0,0,7,7,7],from:'#ff0000',color:'#00ff00'}", schema: { ...regionSchema.optional_(), from: z.string().optional(), color: z.string() } },
+  { name: "paint", description: "换色：region 省略=全网格，from 省略=区域内全部。示例: {region:[0,0,0,7,7,7],from:'#ff0000',color:'#00ff00'}", schema: { region: z.array(z.number().int()).length(6).optional(), from: z.string().optional(), color: z.string() } },
   { name: "erase", description: "擦除：region 六元组或 'all'", schema: { region: z.union([z.array(z.number().int()).length(6), z.literal("all")]) } },
   { name: "translate", description: "平移区域内体素（目标出界/被占则丢弃）。示例: {region:[0,0,0,3,3,3],dx:4,dy:0,dz:0}", schema: { ...regionSchema, dx: z.number().int(), dy: z.number().int(), dz: z.number().int() } },
   { name: "undo", description: "撤销最近一次变更（栈深 20）", schema: {} },
   { name: "sample", description: "读单点颜色验证", schema: { x: z.number().int(), y: z.number().int(), z: z.number().int() } },
-  { name: "slice_ascii", description: "层字符画（最便宜的空间校验）。示例: {axis:'y',index:3}", schema: { axis: z.enum(["x", "y", "z"]), index: z.number().int(), ...regionSchema.optional_() } },
+  { name: "slice_ascii", description: "层字符画（最便宜的空间校验）。示例: {axis:'y',index:3}", schema: { axis: z.enum(["x", "y", "z"]), index: z.number().int(), region: z.array(z.number().int()).length(6).optional() } },
   { name: "check", description: "自诊断：悬空/连通分量/对称差/每轴 occupancy 剖面", schema: {} },
   { name: "script", description: "vm 沙箱跑 JS 批量生成（同步代码，5s 超时，失败自动回滚）。API: box/sphere/cylinder/line/set/unset/paint/erase/translate/palette(hex)/size/log。示例: {code:'for(let i=0;i<10;i++) box(i*6,0,0,i*6+2,5,2,\"#8B4513\")'}", schema: { code: z.string(), timeoutMs: z.number().int().optional() } },
   { name: "export", description: "导出 GLB 或 .vox（返回结构校验摘要）", schema: { format: z.enum(["glb", "vox"]), path: z.string().optional() } },
   { name: "render_png", description: "渲染 PNG 供视觉自检：view 预设/yaw+pitch、views:'multi' 三视图合一、cutaway 剖切、highlight 区域红框。示例: {views:'multi',size:512}", schema: { view: z.enum(["iso", "front", "side", "top"]).optional(), yaw: z.number().optional(), pitch: z.number().optional(), views: z.enum(["single", "multi"]).optional(), size: z.number().int().optional(), proj: z.enum(["ortho", "persp"]).optional(), cutaway: z.enum(["x", "y", "z", "quarter"]).optional(), highlight: z.array(z.number().int()).length(6).optional(), path: z.string().optional() } }
 ];
-```
-⚠️ `optional_()` 不是 zod API——上面两处写法是伪码。修正：把 region 字段直接写 `.optional()`：
-```ts
-{ name: "paint", schema: { region: z.array(z.number().int()).length(6).optional(), from: z.string().optional(), color: z.string() } },
-{ name: "slice_ascii", schema: { axis: z.enum(["x","y","z"]), index: z.number().int(), region: z.array(z.number().int()).length(6).optional() } },
 ```
 
 - [ ] **Step 4: 跑测试通过**
@@ -4125,5 +4120,5 @@ git commit -m "feat: 城堡端到端示例 + README"
 ## 自审记录（writing-plans Self-Review）
 
 1. **Spec 覆盖**：18 工具（Task 13/14）✓；数据格式与原子写（Task 3）✓；GLB/vox/PNG 导出+结构闸门（Task 7/8/9）✓；render 多模态套件 view/multi/axes/cutaway/highlight（Task 9/10）✓；slice_ascii/check/script（Task 11/12）✓；viewer SSE+相机保持（Task 15）✓；CLI/bins（Task 16）✓；验收标准 1-5（Task 17）✓；instructions few-shot（Task 14）✓。
-2. **占位符扫描**：计划内三处内联勘误已就地标注并给出修正代码（vox chunk() 辅助函数 head 写法、render.ts Cam.eyeDist 字段、TOOLS 的 `optional_()` 伪码与 tools.test export 正则），无遗留 TBD。
+2. **占位符扫描**：计划内内联勘误已就地标注并给出修正代码（vox chunk() 辅助函数 head 写法、render.ts Cam.eyeDist 字段、tools.test export 正则）；TOOLS 的 `optional_()` 伪码已在交接前直接改为可用的 zod 代码（本提交）。无遗留 TBD。
 3. **类型一致性**：`ChangeStats/PlaceOpts/CylinderOpts/LineOpts`（Task 4/5 定义 → Task 12/13 消费）、`VoxelSource/gridSource/renderView/renderProject`（Task 9/10 → 13/16）、`buildMesh/MeshData`（Task 7 → 15/16）、`ForgeSession/TOOLS`（Task 13 → 14/16）签名前后一致。
