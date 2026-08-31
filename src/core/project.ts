@@ -15,7 +15,11 @@ export function validateProject(data: unknown): VoxelProject {
   if (typeof palette !== "object" || palette === null) throw new Error("palette 必须为对象");
   for (const [k, v] of Object.entries(palette)) {
     if (!/^\d+$/.test(k) || Number(k) < 1 || Number(k) > 255) throw new Error(`palette 键必须为 1..255: ${k}`);
-    Palette.normalize(v as string);
+    try {
+      Palette.normalize(v as string);
+    } catch {
+      throw new Error(`palette[${k}] 颜色格式无效: ${JSON.stringify(v)}，需要 #RRGGBB`);
+    }
   }
   const voxels = d.voxels;
   if (typeof voxels !== "object" || voxels === null) throw new Error("voxels 必须为对象");

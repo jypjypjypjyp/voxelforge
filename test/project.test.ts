@@ -21,6 +21,9 @@ describe("validateProject", () => {
     expect(() => validateProject({ ...emptyProject([8, 8, 8]), voxels: { "0,0,0": 0 } })).toThrow(/1\.\.255/);
     expect(() => validateProject({ ...emptyProject([8, 8, 8]), palette: { "0": "#ff0000" } })).toThrow(/1\.\.255/);
   });
+  it("palette 坏 hex 报错含字段名", () => {
+    expect(() => validateProject({ ...emptyProject([8, 8, 8]), palette: { "1": "red" } })).toThrow(/palette\[1\] 颜色格式无效/);
+  });
 });
 
 describe("saveForge/loadForge roundtrip", () => {
