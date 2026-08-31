@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { SparseVoxelGrid } from "../src/core/grid.js";
 import { placeBox, placeLine, placeSphere, placeCylinder } from "../src/core/ops.js";
+import { paintRegion, eraseRegion, translateRegion } from "../src/core/ops.js";
 
 describe("placeBox", () => {
   it("实心 2x3x4 = 24，返回计数与 bounds", () => {
@@ -134,5 +135,70 @@ describe("placeCylinder", () => {
     placeCylinder(g, 4, 0, 4, 1, 2, 1, { mirror: ["x"] });
     expect(g.get(4, 0, 4)).toBe(1);
     expect(g.get(11, 0, 4)).toBe(1); // 16-1-4=11
+  });
+});
+
+describe("paintRegion", () => {
+  it("区域内全部换色", () => {
+    const g = new SparseVoxelGrid([8, 8, 8]);
+    placeBox(g, 0, 0, 0, 3, 3, 3, 1);
+    const s = paintRegion(g, [0, 0, 0, 3, 3, 3], undefined, 2);
+    expect(s.added).toBe(64);
+    expect(g.get(0, 0, 0)).toBe(2);
+    expect(g.colorCounts().get(1)).toBeUndefined();
+  });
+
+  it("fromIdx 过滤换色", () => {
+    const g = new SparseVoxelGrid([8, 8, 8]);
+    g.set(0, 0, 0, 1); g.set(1, 0, 0, 2);
+    paintRegion(g, null, 1, 3); // 全网格：仅色 1 → 色 3
+    expect(g.get(0, 0, 0)).toBe(3);
+    expect(g.get(1, 0, 0)).toBe(2);
+  });
+
+  it("无匹配时 added=0", () => {
+    const g = new SparseVoxelGrid([8, 8, 8]);
+    expect(paintRegion(g, null, undefined, 1).added).toBe(0);
+  });
+});
+
+describe("eraseRegion", () => {
+  it("区域擦除计数 removed", () => {
+    const g = new SparseVoxelGrid([8, 8, 8]);
+    placeBox(g, 0, 0, 0, 3, 3, 3, 1);
+    const s = eraseRegion(g, [0, 0, 0, 1, 1, 1]);
+    expect(s.removed).toBe(8);
+    expect(g.count).toBe(56);
+  });
+
+  it("all 清空", () => {
+    const g = new SparseVoxelGrid([8, 8, 8]);
+    placeBox(g, 0, 0, 0, 3, 3, 3, 1);
+    const s = eraseRegion(g, "all");
+    expect(s.removed).toBe(64);
+    expect(g.count).toBe(0);
+    expect(g.bounds()).toBeNull();
+  });
+});
+
+describe("translateRegion", () => {
+  it("平移并统计", () => {
+    const g = new SparseVoxelGrid([16, 16, 16]);
+    placeBox(g, 0, 0, 0, 1, 1, 1, 1);
+    const s = translateRegion(g, [0, 0, 0, 1, 1, 1], 4, 2, 0);
+    expect(s.removed).toBe(8);
+    expect(s.added).toBe(8);
+    expect(g.get(4, 2, 0)).toBe(1);
+    expect(g.get(0, 0, 0)).toBeUndefined();
+  });
+
+  it("出界与目标占用被丢弃", () => {
+    const g = new SparseVoxelGrid([8, 8, 8]);
+    g.set(0, 0, 0, 1); g.set(1, 0, 0, 1); g.set(2, 0, 0, 2); // 目标位预占
+    const s = translateRegion(g, [0, 0, 0, 1, 0, 0], 2, 0, 0);
+    expect(g.get(2, 0, 0)).toBe(2);   // 目标被占，源体素被移除后不落位
+    expect(g.get(3, 0, 0)).toBe(1);   // (1,0,0)→(3,0,0) 成功
+    expect(g.get(0, 0, 0)).toBeUndefined();
+    expect(s.added).toBe(1);
   });
 });

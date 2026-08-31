@@ -170,3 +170,67 @@ export function placeCylinder(
       : [cx - r0, cy - r0, cz, cx + r0, cy + r0, cz + h - 1];
   return placeShape(g, new CylinderShape(cx, cy, cz, r, h, axis), region, idx, opts);
 }
+
+export function paintRegion(
+  g: SparseVoxelGrid, region: Region | null,
+  fromIdx: number | undefined, toIdx: number
+): ChangeStats {
+  const r = region ? normRegion(region) : [0, 0, 0, g.size[0] - 1, g.size[1] - 1, g.size[2] - 1] as Region;
+  let changed = 0;
+  for (let x = Math.max(0, r[0]); x <= Math.min(g.size[0] - 1, r[3]); x++) {
+    for (let y = Math.max(0, r[1]); y <= Math.min(g.size[1] - 1, r[4]); y++) {
+      for (let z = Math.max(0, r[2]); z <= Math.min(g.size[2] - 1, r[5]); z++) {
+        const cur = g.get(x, y, z);
+        if (cur === undefined) continue;
+        if (fromIdx !== undefined && cur !== fromIdx) continue;
+        if (cur === toIdx) continue;
+        g.set(x, y, z, toIdx);
+        changed++;
+      }
+    }
+  }
+  return stats(g, changed, 0);
+}
+
+export function eraseRegion(g: SparseVoxelGrid, region: Region | "all"): ChangeStats {
+  if (region === "all") {
+    const removed = g.count;
+    g.clear();
+    return stats(g, 0, removed);
+  }
+  const r = normRegion(region);
+  let removed = 0;
+  for (let x = Math.max(0, r[0]); x <= Math.min(g.size[0] - 1, r[3]); x++) {
+    for (let y = Math.max(0, r[1]); y <= Math.min(g.size[1] - 1, r[4]); y++) {
+      for (let z = Math.max(0, r[2]); z <= Math.min(g.size[2] - 1, r[5]); z++) {
+        if (g.unset(x, y, z)) removed++;
+      }
+    }
+  }
+  return stats(g, 0, removed);
+}
+
+export function translateRegion(
+  g: SparseVoxelGrid, region: Region, dx: number, dy: number, dz: number
+): ChangeStats {
+  const r = normRegion(region);
+  const moved: Array<[number, number, number, number]> = [];
+  for (let x = Math.max(0, r[0]); x <= Math.min(g.size[0] - 1, r[3]); x++) {
+    for (let y = Math.max(0, r[1]); y <= Math.min(g.size[1] - 1, r[4]); y++) {
+      for (let z = Math.max(0, r[2]); z <= Math.min(g.size[2] - 1, r[5]); z++) {
+        const idx = g.get(x, y, z);
+        if (idx !== undefined) moved.push([x, y, z, idx]);
+      }
+    }
+  }
+  for (const [x, y, z] of moved) g.unset(x, y, z);
+  let added = 0;
+  for (const [x, y, z, idx] of moved) {
+    const nx = x + dx, ny = y + dy, nz = z + dz;
+    if (g.inBounds(nx, ny, nz) && g.get(nx, ny, nz) === undefined) {
+      g.set(nx, ny, nz, idx);
+      added++;
+    }
+  }
+  return stats(g, added, moved.length);
+}
