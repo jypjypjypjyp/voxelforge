@@ -23,18 +23,30 @@ export async function startViewer(file: string, port = 4173): Promise<{ server: 
         const j = fs.readFileSync(abs, "utf8");
         JSON.parse(j); // 校验完整性
         if (j !== lastJson) { lastJson = j; broadcast(); }
+        if (!watcher) armWatcher(); // 文件已就绪但 watcher 未挂上（如启动时文件尚未创建）：补挂
         return;
       } catch { await sleep(100); }
     }
   };
 
+  // watch 父目录而非文件本身：目录 watcher 在文件 create/原子替换（rename 换 inode）后仍存活，
+  // 且文件尚不存在时也能先挂上（fs.watch 对不存在的文件会 ENOENT）。
+  const dir = path.dirname(abs);
+  const base = path.basename(abs);
+  let watcher: fs.FSWatcher | undefined;
   let timer: NodeJS.Timeout | undefined;
-  try {
-    fs.watch(abs, () => {
-      clearTimeout(timer);
-      timer = setTimeout(tryRead, 150);
-    });
-  } catch { /* 文件尚不存在：等待 create_project */ }
+  const armWatcher = (): void => {
+    if (watcher) return;
+    try {
+      watcher = fs.watch(dir, (_event, filename) => {
+        if (filename && filename !== base) return;
+        clearTimeout(timer);
+        timer = setTimeout(tryRead, 150);
+      });
+      watcher.on("error", () => { watcher?.close(); watcher = undefined; });
+    } catch { /* 目录暂不可 watch：下次 tryRead 时再试 */ }
+  };
+  armWatcher();
   await tryRead();
 
   const server = http.createServer((req, res) => {
@@ -73,6 +85,7 @@ export async function startViewer(file: string, port = 4173): Promise<{ server: 
   return {
     server, port: realPort,
     close: async () => {
+      watcher?.close();
       clearInterval(timer);
       server.close();
       server.closeAllConnections?.(); // 打开的 SSE 连接会挂住 close，显式断开
