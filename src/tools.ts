@@ -12,7 +12,9 @@ import { runScript } from "./core/script.js";
 import { sliceAscii } from "./core/slice.js";
 import { checkGrid, formatCheck } from "./core/check.js";
 import { exportGlb, verifyGlb } from "./core/export/glb.js";
-import { buildMesh } from "./core/export/mesh.js";
+import { buildMesh, hexToRgb01 } from "./core/export/mesh.js";
+import { computeSignedDistance } from "./core/sdf.js";
+import { surfaceNets, signedVolume, bboxOf } from "./core/surfaceNets.js";
 import { exportVox, verifyVox } from "./core/export/vox.js";
 import { encodePng } from "./core/export/png.js";
 import { gridSource } from "./core/render/raycast.js";
@@ -58,7 +60,8 @@ export const TOOLS: ToolDef[] = [
   { name: "check", description: "自诊断：悬空/连通分量/对称差/每轴 occupancy 剖面（对称差中 y 轴的 y=0 贴地层豁免竖直镜像对应）", schema: {} },
   { name: "script", description: "vm 沙箱跑 JS 批量生成（同步代码，5s 超时，失败自动回滚）。API: box/sphere/cylinder/line/set/unset/paint/erase/translate/palette(hex)/size/log。示例: {code:'for(let i=0;i<10;i++) box(i*6,0,0,i*6+2,5,2,\"#8B4513\")'}", schema: { code: z.string(), timeoutMs: z.number().int().optional() } },
   { name: "export", description: "导出 GLB 或 .vox（返回结构校验摘要）", schema: { format: z.enum(["glb", "vox"]), path: z.string().optional() } },
-  { name: "render_png", description: "渲染 PNG 供视觉自检：view 预设/yaw+pitch、views:'multi' 三视图合一、cutaway 剖切、highlight 区域红框。axes 地面参照层默认单视图开启、multi 关闭（避免与 highlight 红框冲突）。示例: {views:'multi',size:512}", schema: { view: z.enum(["iso", "front", "side", "top"]).optional(), yaw: z.number().optional(), pitch: z.number().optional(), views: z.enum(["single", "multi"]).optional(), size: z.number().int().optional(), proj: z.enum(["ortho", "persp"]).optional(), cutaway: z.enum(["x", "y", "z", "quarter"]).optional(), highlight: z.array(z.number().int()).length(6).optional(), axes: z.boolean().optional(), path: z.string().optional() } }
+  { name: "render_png", description: "渲染 PNG 供视觉自检：view 预设/yaw+pitch、views:'multi' 三视图合一、cutaway 剖切、highlight 区域红框。axes 地面参照层默认单视图开启、multi 关闭（避免与 highlight 红框冲突）。示例: {views:'multi',size:512}", schema: { view: z.enum(["iso", "front", "side", "top"]).optional(), yaw: z.number().optional(), pitch: z.number().optional(), views: z.enum(["single", "multi"]).optional(), size: z.number().int().optional(), proj: z.enum(["ortho", "persp"]).optional(), cutaway: z.enum(["x", "y", "z", "quarter"]).optional(), highlight: z.array(z.number().int()).length(6).optional(), axes: z.boolean().optional(), path: z.string().optional() } },
+  { name: "sdf_mesh", description: "体素→有符号距离场→Surface Nets 重建平滑网格并出 GLB。参数: resolution(立方最大轴边长,默认=体素size), color(平涂单色,缺省采样最近体素色), smooth, path。示例: {resolution:32}", schema: { resolution: z.number().int().min(1).max(256).optional(), color: z.string().optional(), smooth: z.number().int().min(0).max(8).optional(), path: z.string().optional() } }
 ];
 
 export class ForgeSession {
@@ -264,6 +267,31 @@ export class ForgeSession {
         await saveForge(this.file, this.grid, this.palette);
         const logs = r.logs.length ? `\nlog: ${r.logs.join(" | ")}` : "";
         return { content: `script: +${r.added} -${r.removed}, total ${r.total}${logs}` };
+      }
+      case "sdf_mesh": {
+        if (this.grid.count === 0) throw new Error("空网格无法从 SDF 重建");
+        const gsize = this.grid.size;
+        const maxAxis = Math.max(gsize[0], gsize[1], gsize[2]);
+        const res = a.resolution ?? maxAxis;
+        const field = computeSignedDistance(this.grid, { smooth: a.smooth ?? 0 });
+        const colorAt = (x: number, y: number, z: number): [number, number, number] => {
+          if (a.color !== undefined) return hexToRgb01(String(a.color));
+          const vx = Math.min(Math.max(Math.round(x - 0.5), 0), gsize[0] - 1);
+          const vy = Math.min(Math.max(Math.round(y - 0.5), 0), gsize[1] - 1);
+          const vz = Math.min(Math.max(Math.round(z - 0.5), 0), gsize[2] - 1);
+          const idx = this.grid.get(vx, vy, vz);
+          const hex = idx === undefined ? "#888888" : (this.palette.hexOf(idx) ?? "#888888");
+          return hexToRgb01(hex);
+        };
+        const mesh = surfaceNets(field, res, colorAt);
+        if (mesh.indices.length === 0) throw new Error("SDF 表面未捕捉到任何面（模型可能占满/全空，或分辨率过小）");
+        const buf = exportGlb(mesh);
+        const out = a.path ?? `${this.file.replace(/\.voxel\.json$/, "")}_sdf_r${res}.glb`;
+        await fs.writeFile(out, buf);
+        const v = verifyGlb(buf);
+        const bb = bboxOf(mesh);
+        const vol = signedVolume(mesh);
+        return { content: `sdf_mesh: GLB ${out}（${v.tris} tris, ${mesh.positions.length / 3} verts, bbox (${bb.min[0].toFixed(1)},${bb.min[1].toFixed(1)},${bb.min[2].toFixed(1)})-(${bb.max[0].toFixed(1)},${bb.max[1].toFixed(1)},${bb.max[2].toFixed(1)}), 体积 ${vol.toFixed(1)}, 结构闸门通过）` };
       }
       case "export": {
         if (a.format === "glb") {

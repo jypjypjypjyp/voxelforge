@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { mkdtempSync } from "node:fs";
+import { existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { readFile } from "node:fs/promises";
@@ -11,11 +12,11 @@ beforeEach(() => {
 });
 
 describe("ForgeSession", () => {
-  it("listTools 18 个且无重名", () => {
+  it("listTools 19 个且无重名", () => {
     const s = new ForgeSession(file);
     const names = s.listTools().map(t => t.name);
-    expect(names.length).toBe(18);
-    expect(new Set(names).size).toBe(18);
+    expect(names.length).toBe(19);
+    expect(new Set(names).size).toBe(19);
   });
 
   it("create_project → info → box → 落盘", async () => {
@@ -177,5 +178,28 @@ describe("ForgeSession", () => {
     const info = (await s.handle("info", {})).content;
     expect(info).toContain("size: 64x64x64");
     expect(info).toContain("voxels: 0");
+  });
+
+  it("sdf_mesh 出平滑 GLB（默认色采样 + 可强制单色）", async () => {
+    const s = new ForgeSession(file);
+    await s.init();
+    await s.handle("create_project", { size: [16, 16, 16] });
+    await s.handle("box", { x0: 4, y0: 4, z0: 4, x1: 11, y1: 11, z1: 11, color: "#8b4513" });
+    const r = await s.handle("sdf_mesh", { resolution: 24 });
+    expect(r.content).toMatch(/sdf_mesh: GLB .*_sdf_r24\.glb/);
+    expect(r.content).toMatch(/结构闸门通过/);
+    expect(existsSync(file.replace(/\.voxel\.json$/, "") + "_sdf_r24.glb")).toBe(true);
+    // 强制单色路径
+    const r2 = await s.handle("sdf_mesh", { resolution: 16, color: "#ff0000", path: file + ".hue.glb" });
+    expect(r2.content).toMatch(/sdf_mesh: GLB/);
+    expect(r2.content).toMatch(/结构闸门通过/);
+    expect(existsSync(file + ".hue.glb")).toBe(true);
+  });
+
+  it("sdf_mesh 空网格报错", async () => {
+    const s = new ForgeSession(file);
+    await s.init();
+    await s.handle("create_project", { size: [8, 8, 8] });
+    await expect(s.handle("sdf_mesh", {})).rejects.toThrow(/空/);
   });
 });

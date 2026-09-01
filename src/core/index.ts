@@ -4,3 +4,5 @@ export * from "./palette.js";
 export * from "./project.js";
 export * from "./ops.js";
 export * from "./script.js";
+export * from "./sdf.js";
+export * from "./surfaceNets.js";
