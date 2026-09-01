@@ -5,7 +5,7 @@ description: Use when 创建/修改 3D 体素模型、像素风建模、建城�
 
 # 体素建模（voxelforge）
 
-用体素 CLI 建模：先定骨架再补细节，**每完成一个大结构就 `check`，交付前必 `render` 目检**。
+像雕刻一样建模：**粗坯 → 细雕 → 精修 → 独立评审**，每阶段有出口校验，评审通过才交付。
 
 ## 快速开始
 
@@ -37,17 +37,35 @@ $VF tool /tmp/model.voxel.json check
 | `export` | 导出 | `{format:"glb"}` 或 `"vox"` |
 | `render_png` | 渲染目检 | `{views:"multi", path:"/abs/out.png"}` 三视图合一；`highlight:[x0,y0,z0,x1,y1,z1]` 描红；输出路径字段是 **`path`** |
 
-## 建模工作流
+## 建模工作流（仿雕刻：粗坯 → 细雕 → 精修 → 独立评审）
 
-1. `create_project` 定尺寸（想好比例再定，改尺寸要重建）
-2. **骨架**：box/cylinder 摆大结构；对称物体务必用 `mirror` 一次成型，别手摆两边
-3. `check`：看 `floating`（悬空）、`components`（应为 1，除非有意分离）、`symmetry`、profile 空层
-4. 细节与配色（多数体素 < 20 色，够用）
-5. `slice_ascii` 抽查 1-2 个关键层，确认结构位置
-6. `render_png {views:"multi"}` 目检；发现局部问题用 `highlight:[region]` 重渲确认坐标，再定点修改
-7. `export {format:"glb"}` 交付（自带结构闸门摘要）
+像雕刻一样工作：先用**大几何**定比例，再在坯上**增减**成型，最后精修，并派**独立评审**把关。每个阶段有出口校验，评审通过才交付。
 
-**纪律**：结构闸门通过 ≠ 视觉正确——宣称完成前必须 `render_png` 且（有视觉能力时）实际目检。
+### 阶段 1｜粗坯（blocking）
+- 只用**大的基础几何**（大方块、大圆柱、球）摆出轮廓与比例——此阶段只求"形与比例对"，**禁止写细节**（比例未定的细节全是返工）
+- 对称体从第一步就上 `mirror`
+- 出口校验：`check` + `render_png`（iso 单视图即可）确认比例；比例错了在这里返工最便宜
+
+### 阶段 2｜细雕（carving）
+- 在粗坯上**增减**：`erase` 挖门窗/掏空/削角，box/cylinder 加附属（檐、翼、烟囱、喷口），`line` 勾棱
+- 每完成一个部件 `check` 一次；`slice_ascii` 抽查部件关键层
+
+### 阶段 3｜精修（detail）
+- `paint` 分区配色、`set` 点缀小体素（多数模型 < 20 色）
+- 出口校验：`check` 各项**可解释**（floating/symmetry 见语义坑——合法悬挑不必归零）
+
+### 阶段 4｜独立评审（critic，交付前必做）
+- 派发一个**独立子代理**（用你环境里的子代理/后台任务机制，fresh context，不带你的过程叙述）当 critic，简报只给三样：模型文件路径、VF 路径、用户需求原文
+- critic 自行跑 `check`/`slice_ascii`/`render_png`，对照需求找问题；**只读不改**；输出 `PASS` 或编号清单（每条：region + 严重度 + 建议）
+- 主代理逐条修复 → 重渲 → 可再派一轮复核（**上限 2 轮**，防循环）
+- ⚠️ critic 结果回传后必须**汇总最终汇报再结束回合**——禁止"派完评审就挂起等待"
+- 环境不支持子代理时：降级为"换视角自审"——对照 render/check/slice 清单逐项过一遍，假装第一次看
+
+### 阶段 5｜交付
+- `render_png {views:"multi"}` 最终目检（有视觉能力时实际看图）
+- `export {format:"glb"}`（自带结构闸门摘要）
+
+**纪律**：粗坯期禁写细节；结构闸门通过 ≠ 视觉正确——宣称完成前必须 `render_png` 且（有视觉能力时）实际目检；critic 意见与你的判断冲突时，先重渲核实再反驳。
 
 ## script() 批量生成
 
@@ -73,6 +91,8 @@ $VF tool model.voxel.json script '{"code":"for (let i=0;i<10;i++) box(i*6,0,0,i*
 - 调色板上限 **255 色**；`paint` 的 `from` 色必须已存在（防幻影）
 - `mirror` 映射 `v → size-1-v`；每次放置自动复制镜像位，无需手摆两边
 - ⚠️ 工具 JSON 字段与 CLI 旗标不同名：`tool` 子命令里输出路径是 **`path`**（`out` 是 `render` 子命令的旗标，写在 JSON 里会被忽略）
+- `script` 沙箱参数形态：`box/set` 收标量坐标，`erase/paint/translate` 收 region **数组**——传错会报错自动回滚
+- 坐标/圆心须为**整数**；奇数宽物体放偶数网格时，模型自轴与 mirror 轴（`size/2-0.5`）差半格 → `check` 的 symmetry 出现系统性伪影（让 critic 绕模型自轴复核，或改用奇数网格）
 
 ## 实时 Viewer（可选）
 
