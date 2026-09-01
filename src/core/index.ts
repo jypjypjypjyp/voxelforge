@@ -6,3 +6,4 @@ export * from "./ops.js";
 export * from "./script.js";
 export * from "./sdf.js";
 export * from "./surfaceNets.js";
+export * from "./color.js";

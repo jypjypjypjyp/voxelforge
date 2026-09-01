@@ -3,7 +3,8 @@ import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { SparseVoxelGrid } from "../core/grid.js";
 import { computeSignedDistance } from "../core/sdf.js";
 import { surfaceNets } from "../core/surfaceNets.js";
-import { buildMesh, hexToRgb01 } from "../core/export/mesh.js";
+import { buildMesh } from "../core/export/mesh.js";
+import { sampleVoxelColor } from "../core/color.js";
 import type { VoxelProject } from "../core/types.js";
 
 const hud = document.getElementById("hud")!;
@@ -61,14 +62,8 @@ function buildVoxel(p: Proj): void {
 function buildSdf(p: Proj): void {
   const grid = SparseVoxelGrid.fromProject(p);
   const sdf = computeSignedDistance(grid, { smooth: 1 });
-  const sizeS = grid.size;
-  const colorAt = (x: number, y: number, z: number): [number, number, number] => {
-    const vx = Math.min(Math.max(Math.round(x - 0.5), 0), sizeS[0] - 1);
-    const vy = Math.min(Math.max(Math.round(y - 0.5), 0), sizeS[1] - 1);
-    const vz = Math.min(Math.max(Math.round(z - 0.5), 0), sizeS[2] - 1);
-    const idx = grid.get(vx, vy, vz);
-    return idx === undefined ? [0.55, 0.55, 0.55] : hexToRgb01(p.palette[String(idx)] ?? "#ffffff");
-  };
+  const colorAt = (x: number, y: number, z: number): [number, number, number] =>
+    sampleVoxelColor(grid, (idx) => p.palette[String(idx)], x, y, z);
   const m = surfaceNets(sdf, meshRes, colorAt);
   const geo = new THREE.BufferGeometry();
   geo.setAttribute("position", new THREE.BufferAttribute(m.positions, 3));
