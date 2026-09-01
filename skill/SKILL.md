@@ -11,7 +11,7 @@ description: Use when 创建/修改 3D 体素模型、像素风建模、建城�
 
 ```bash
 VF=/Users/a1234/Library/CloudStorage/OneDrive-个人/Documents/鲸鱼娘/test/voxelforge/dist/cli.js
-$VF tools                                  # 列出全部 18 个工具
+$VF tools                                  # 列出全部 19 个工具
 $VF new /tmp/model.voxel.json --size 64    # 新建 64³ 项目（已存在加 --force）
 $VF tool /tmp/model.voxel.json box '{"x0":8,"y0":0,"z0":8,"x1":55,"y1":7,"z1":55,"color":"#9aa0a6","hollow":true,"mirror":["x"]}'
 $VF tool /tmp/model.voxel.json check
@@ -19,7 +19,7 @@ $VF tool /tmp/model.voxel.json check
 
 工具参数是 **JSON 对象**，颜色一律 `#RRGGBB`，引擎自动分配调色板。
 
-## 18 工具速查（`$VF tools` 可随时列出）
+## 19 工具速查（`$VF tools` 可随时列出）
 
 | 命令 | 用途 | 要点 |
 |---|---|---|
@@ -36,6 +36,7 @@ $VF tool /tmp/model.voxel.json check
 | `script` | 批量生成 | vm 沙箱跑 JS（见下） |
 | `export` | 导出 | `{format:"glb"}` 或 `"vox"` |
 | `render_png` | 渲染目检 | `{views:"multi", path:"/abs/out.png"}` 三视图合一；`highlight:[x0,y0,z0,x1,y1,z1]` 描红；输出路径字段是 **`path`** |
+| `sdf_mesh` | 体素→平滑网格 | `{resolution:32}`（立方最大轴边长,默认=体素size）；`color` 平涂单色/缺省采样最近体素色；`smooth` 0-8；出 GLB（结构闸门通过） |
 
 ## 建模工作流（仿雕刻：粗坯 → 细雕 → 精修 → critic 评审闭环）
 
@@ -94,6 +95,8 @@ $VF tool model.voxel.json script '{"code":"for (let i=0;i<10;i++) box(i*6,0,0,i*
 - ⚠️ 工具 JSON 字段与 CLI 旗标不同名：`tool` 子命令里输出路径是 **`path`**（`out` 是 `render` 子命令的旗标，写在 JSON 里会被忽略）
 - `script` 沙箱参数形态：`box/set` 收标量坐标，`erase/paint/translate` 收 region **数组**——传错会报错自动回滚
 - 坐标/圆心须为**整数**；奇数宽物体放偶数网格时，模型自轴与 mirror 轴（`size/2-0.5`）差半格 → `check` 的 symmetry 出现系统性伪影（让 critic 绕模型自轴复核，或改用奇数网格）
+- `sdf_mesh` 的网格是**连续曲面**（Surface Nets 重建），非方块体素——体积与包围盒≈体素模型但有平滑圆角；薄壁/小特征分辨率过低可能闭合不上内壳。
+- 分辨率越高三角越多越平滑；在 viewer 切"平滑网格"模式可拖分辨率滑杆交互探索。
 
 ## 实时 Viewer（可选）
 

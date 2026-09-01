@@ -25,8 +25,9 @@ node examples/build-castle.mjs
 | `voxelforge new <file> [--size 64] [--force]` | 新建项目 |
 | `voxelforge serve <file> [--port 4173]` | 启动实时 viewer |
 | `voxelforge export <file> --glb out.glb \| --vox out.vox` | 导出 |
-| `voxelforge tools` / `voxelforge tool <file> <name> '<json>'` | 直调 18 个建模工具 |
+| `voxelforge tools` / `voxelforge tool <file> <name> '<json>'` | 直调 19 个建模工具 |
 | `voxelforge render <file> [--multi] [--cutaway q] [--view iso]` | 渲染 PNG |
+| `voxelforge remesh <file> [--res N] [--smooth S] [--color #hex] --out out.glb` | 体素→SDF→Surface Nets→平滑网格 GLB |
 
 render 还支持 `--yaw/--pitch/--out/--size/--proj/--axes=false` 等参数，详见 `node dist/cli.js` 用法输出。
 
@@ -34,9 +35,11 @@ render 还支持 `--yaw/--pitch/--out/--size/--proj/--axes=false` 等参数，�
 
 `.voxel.json`：`{ format, size, palette: {"1":"#rrggbb"}, voxels: {"x,y,z": 色号} }`（LLM 可直读直写）。
 
+`sdf_mesh` 工具可从体素网格重建连续平滑网格（复用 core 的 `computeSignedDistance`/`surfaceNets`）。
+
 ## Skill 形态（推荐日常入口）
 
-项目自带 agent skill（`skill/SKILL.md`，含 18 工具 CLI 速查 + 建模闭环方法论 + 语义坑），安装：
+项目自带 agent skill（`skill/SKILL.md`，含 19 工具 CLI 速查 + 建模闭环方法论 + 语义坑），安装：
 
 ```bash
 mkdir -p ~/.agents/skills/voxel-modeling && cp skill/SKILL.md ~/.agents/skills/voxel-modeling/
