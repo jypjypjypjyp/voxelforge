@@ -1,6 +1,6 @@
 ---
 name: voxel-modeling
-description: Use when 创建/修改 3D 体素模型、像素风建模、建城堡/建筑/载具/角色等体素作品，或用户提到 voxel、体素、像素建模、voxelforge、mcp__voxel 时。适用 voxelforge CLI 与 mcp__voxel__* 工具的任何会话。
+description: Use when 创建/修改 3D 体素模型、像素风建模、建城堡/建筑/载具/角色等体素作品，或用户提到 voxel、体素、像素建模、voxelforge 时。适用 voxelforge CLI 的任何会话。
 ---
 
 # 体素建模（voxelforge）
@@ -17,9 +17,7 @@ $VF tool /tmp/model.voxel.json box '{"x0":8,"y0":0,"z1":8,"z1":8,"x1":55,"y1":7,
 $VF tool /tmp/model.voxel.json check
 ```
 
-工具参数是 **JSON 对象**，与 MCP 形态完全一致；颜色一律 `#RRGGBB`，引擎自动分配调色板。
-
-若会话里有 `mcp__voxel__*` 工具（MCP 已开启时），优先直接用它们——参数形态与下述 JSON 相同。
+工具参数是 **JSON 对象**，颜色一律 `#RRGGBB`，引擎自动分配调色板。
 
 ## 18 工具速查（`$VF tools` 可随时列出）
 
@@ -37,7 +35,7 @@ $VF tool /tmp/model.voxel.json check
 | `check` | 自诊断 | 悬空/连通分量/对称差/每轴 occupancy 剖面 |
 | `script` | 批量生成 | vm 沙箱跑 JS（见下） |
 | `export` | 导出 | `{format:"glb"}` 或 `"vox"` |
-| `render_png` | 渲染目检 | `{views:"multi"}` 三视图合一；`highlight:[x0,y0,z0,x1,y1,z1]` 描红 |
+| `render_png` | 渲染目检 | `{views:"multi", path:"/abs/out.png"}` 三视图合一；`highlight:[x0,y0,z0,x1,y1,z1]` 描红；输出路径字段是 **`path`** |
 
 ## 建模工作流
 
@@ -70,10 +68,11 @@ $VF tool model.voxel.json script '{"code":"for (let i=0;i<10;i++) box(i*6,0,0,i*
 - `check` 的 `floating`：正下方+四侧下方共 5 位全空且 y>0 才计——空心房间顶板、平顶出檐**天然大量 floating，属正常形态**，不是错误
 - `symmetry.y` 豁免贴地层（y=0）——接地建筑 y 向不对称是正常的；看 x/z 的对称差
 - 渲染光照下浅色偏灰是着色效果，非建模问题
-- `box/sphere/cylinder/line`：越界区域**静默裁剪**（MCP/CLI 同语义）；script 沙箱内则**严格报错**
+- `box/sphere/cylinder/line`：越界区域**静默裁剪**（CLI 语义）；script 沙箱内则**严格报错**
 - `translate/paint/erase`：区域越界静默裁剪；translate 目标出界/被占的体素被丢弃
 - 调色板上限 **255 色**；`paint` 的 `from` 色必须已存在（防幻影）
 - `mirror` 映射 `v → size-1-v`；每次放置自动复制镜像位，无需手摆两边
+- ⚠️ 工具 JSON 字段与 CLI 旗标不同名：`tool` 子命令里输出路径是 **`path`**（`out` 是 `render` 子命令的旗标，写在 JSON 里会被忽略）
 
 ## 实时 Viewer（可选）
 

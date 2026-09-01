@@ -1,6 +1,6 @@
 # voxelforge
 
-LLM-native 3D 体素建模：MCP server + web viewer。
+LLM-native 3D 体素建模：skill + CLI + web viewer。
 
 ## 快速开始
 
@@ -17,13 +17,6 @@ node examples/build-castle.mjs
 # 产出 examples/castle.voxel.json / castle.glb / castle.multi.png / castle.cutaway.png
 ```
 
-## 接入 MCP 客户端（如 Claude Desktop / 任意支持 MCP 的宿主）
-
-```json
-{ "mcpServers": { "voxelforge": { "command": "node", "args": ["/绝对路径/dist/mcp.js", "/绝对路径/model.voxel.json"] } } }
-```
-
-然后对 LLM 说「建一座城堡」即可；工具操作实时反映在 viewer（SSE 推送，相机保持）。
 
 ## CLI
 
@@ -32,8 +25,8 @@ node examples/build-castle.mjs
 | `voxelforge new <file> [--size 64] [--force]` | 新建项目 |
 | `voxelforge serve <file> [--port 4173]` | 启动实时 viewer |
 | `voxelforge export <file> --glb out.glb \| --vox out.vox` | 导出 |
+| `voxelforge tools` / `voxelforge tool <file> <name> '<json>'` | 直调 18 个建模工具 |
 | `voxelforge render <file> [--multi] [--cutaway q] [--view iso]` | 渲染 PNG |
-| `voxelforge-mcp <file>` | stdio MCP server |
 
 render 还支持 `--yaw/--pitch/--out/--size/--proj/--axes=false` 等参数，详见 `node dist/cli.js` 用法输出。
 
@@ -43,14 +36,13 @@ render 还支持 `--yaw/--pitch/--out/--size/--proj/--axes=false` 等参数，�
 
 ## Skill 形态（推荐日常入口）
 
-除 MCP 外，项目自带 agent skill（`skill/SKILL.md`，含 18 工具 CLI 速查 + 建模闭环方法论 + 语义坑），安装：
+项目自带 agent skill（`skill/SKILL.md`，含 18 工具 CLI 速查 + 建模闭环方法论 + 语义坑），安装：
 
 ```bash
 mkdir -p ~/.agents/skills/voxel-modeling && cp skill/SKILL.md ~/.agents/skills/voxel-modeling/
 ```
 
-skill 教模型用 `voxelforge tools` 发现能力、`voxelforge tool <file> <name> '<json>'` 直调任一工具（zod 校验与 MCP 同一套）。
-MCP 与 skill 两种形态可并存；一键开关 MCP：`node scripts/voxel-mcp.mjs on|off|status`。
+skill 教模型用 `voxelforge tools` 发现能力、`voxelforge tool <file> <name> '<json>'` 直调任一工具（zod 校验）。
 
 ## LLM 自检闭环
 

@@ -3,7 +3,7 @@ import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { readFile } from "node:fs/promises";
-import { ForgeSession } from "../src/mcp/tools.js";
+import { ForgeSession } from "../src/tools.js";
 
 let file: string;
 beforeEach(() => {

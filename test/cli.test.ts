@@ -3,7 +3,7 @@ import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync, mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { ForgeSession } from "../src/mcp/tools.js";
+import { ForgeSession } from "../src/tools.js";
 
 // cli 用例是进程级冒烟，跑编译产物 dist/cli.js；未构建时跳过（先 pnpm build）
 const skip = !existsSync("dist/cli.js");

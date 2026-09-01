@@ -1,23 +1,23 @@
 import { z } from "zod";
 import fs from "node:fs/promises";
-import { SparseVoxelGrid } from "../core/grid.js";
-import { Palette } from "../core/palette.js";
-import { loadForge, saveForge } from "../core/project.js";
+import { SparseVoxelGrid } from "./core/grid.js";
+import { Palette } from "./core/palette.js";
+import { loadForge, saveForge } from "./core/project.js";
 import {
   placeBox, placeSphere, placeCylinder, placeLine,
   paintRegion, eraseRegion, translateRegion, normRegion,
   type ChangeStats, type PlaceOpts, type CylinderOpts, type LineOpts
-} from "../core/ops.js";
-import { runScript } from "../core/script.js";
-import { sliceAscii } from "../core/slice.js";
-import { checkGrid, formatCheck } from "../core/check.js";
-import { exportGlb, verifyGlb } from "../core/export/glb.js";
-import { buildMesh } from "../core/export/mesh.js";
-import { exportVox, verifyVox } from "../core/export/vox.js";
-import { encodePng } from "../core/export/png.js";
-import { gridSource } from "../core/render/raycast.js";
-import { renderProject, type RenderRequest } from "../core/render/render.js";
-import type { Axis, Region } from "../core/types.js";
+} from "./core/ops.js";
+import { runScript } from "./core/script.js";
+import { sliceAscii } from "./core/slice.js";
+import { checkGrid, formatCheck } from "./core/check.js";
+import { exportGlb, verifyGlb } from "./core/export/glb.js";
+import { buildMesh } from "./core/export/mesh.js";
+import { exportVox, verifyVox } from "./core/export/vox.js";
+import { encodePng } from "./core/export/png.js";
+import { gridSource } from "./core/render/raycast.js";
+import { renderProject, type RenderRequest } from "./core/render/render.js";
+import type { Axis, Region } from "./core/types.js";
 
 export interface ToolDef {
   name: string;
@@ -284,7 +284,7 @@ export class ForgeSession {
       case "render_png": {
         const src = gridSource(this.grid, (i) => this.palette.hexOf(i) ?? "#ff00ff");
         // Task 10 勘误：renderProject 默认关闭地面参照层（其 X 轴红线会污染「红色=highlight」契约）。
-        // MCP 默认语义：单视图 axes: true（坐标参照层默认开启）；views:"multi" 时 axes: false
+        // 默认语义：单视图 axes: true（坐标参照层默认开启）；views:"multi" 时 axes: false
         //（避免轴红线与 highlight 红框在合成图上语义冲突，与 Task 10 决议一致）；调用方显式传 axes 时以其为准。
         const req: RenderRequest = {
           view: a.view, yaw: a.yaw, pitch: a.pitch, views: a.views,

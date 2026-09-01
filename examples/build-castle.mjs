@@ -1,6 +1,6 @@
 // 城堡示例：voxelforge LLM 建模流程演示（骨架 → check → 细节 → render 目检）
 // 兼做 few-shot 范例：直接用 ForgeSession + 工具名/参数，与 MCP 工具一一对应。
-import { ForgeSession } from "../dist/mcp/tools.js";
+import { ForgeSession } from "../dist/tools.js";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 

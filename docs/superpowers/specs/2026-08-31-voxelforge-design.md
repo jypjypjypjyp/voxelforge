@@ -138,3 +138,6 @@ voxelforge-mcp <file>            # stdio MCP server
 ## 非目标（v1 明确不做）
 
 - .vox 导入、声明式形状图、模板/stamp、人类交互编辑、多文件工程、动画、体素引擎级性能优化（>128³ 分块）。
+
+
+> **演进注记（2026-09-01）**：MCP server 层已按主人决策移除，最终形态为 skill+CLI（`voxelforge tool/tools` 直调 ForgeSession）+ web viewer + voxel-modeling skill（~/.dsh/skills/voxel-modeling）。本文档 MCP 章节保留为历史设计记录；ForgeSession 工具层（原 src/mcp/tools.ts）迁至 src/tools.ts 继续作为 CLI 内核。

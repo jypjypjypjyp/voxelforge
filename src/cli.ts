@@ -2,7 +2,7 @@
 import { parseArgs } from "node:util";
 import fs from "node:fs";
 import { z } from "zod";
-import { ForgeSession, TOOLS } from "./mcp/tools.js";
+import { ForgeSession, TOOLS } from "./tools.js";
 import { emptyProject } from "./core/project.js";
 import { buildMesh } from "./core/export/mesh.js";
 import { exportGlb, verifyGlb } from "./core/export/glb.js";
@@ -22,7 +22,7 @@ function usage(): string {
   voxelforge tools                            # 列出全部 18 个建模工具
   voxelforge tool <file> <name> [jsonArgs]    # 直调任一工具，参数为 JSON 对象
                                               # 例: voxelforge tool m.voxel.json box '{"x0":0,"y0":0,"z0":0,"x1":7,"y1":3,"z1":7,"color":"#9aa0a6","hollow":true}'
-  voxelforge-mcp <file>        # stdio MCP server`;
+`;
 }
 
 async function main(): Promise<number> {
@@ -57,7 +57,7 @@ async function main(): Promise<number> {
   }
 
   if (cmd === "tool") {
-    // tool <file> <name> [jsonArgs] —— 直调任一 ForgeSession 工具（zod 校验与 MCP 层一致）
+    // tool <file> <name> [jsonArgs] —— 直调任一 ForgeSession 工具（zod 校验）
     const [, name, jsonArg] = positionals.slice(1);
     if (!file || !name) throw new Error("用法: voxelforge tool <file> <name> [jsonArgs]（tools 查看列表）");
     const def = TOOLS.find((t) => t.name === name);
