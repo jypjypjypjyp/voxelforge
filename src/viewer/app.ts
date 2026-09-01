@@ -12,6 +12,9 @@ const modeBtn = document.getElementById("modeBtn")! as HTMLButtonElement;
 const resWrap = document.getElementById("resWrap")! as HTMLElement;
 const resSlider = document.getElementById("resSlider")! as HTMLInputElement;
 const resVal = document.getElementById("resVal")! as HTMLElement;
+const smoothWrap = document.getElementById("smoothWrap")! as HTMLElement;
+const smoothSlider = document.getElementById("smoothSlider")! as HTMLInputElement;
+const smoothVal = document.getElementById("smoothVal")! as HTMLElement;
 
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setPixelRatio(Math.min(2, window.devicePixelRatio));
@@ -38,6 +41,8 @@ let meshRes = 64;
 let current: Proj | null = null;
 let obj: THREE.Mesh | null = null;
 let pendingResFrame: number | undefined;
+let smoothValue = 1;
+let pendingSmoothFrame: number | undefined;
 
 function clearObj(): void {
   if (obj) { scene.remove(obj); obj.geometry.dispose(); (obj.material as THREE.Material).dispose(); obj = null; }
@@ -61,7 +66,7 @@ function buildVoxel(p: Proj): void {
 
 function buildSdf(p: Proj): void {
   const grid = SparseVoxelGrid.fromProject(p);
-  const sdf = computeSignedDistance(grid, { smooth: 1 });
+  const sdf = computeSignedDistance(grid, { smooth: smoothValue });
   const colorAt = (x: number, y: number, z: number): [number, number, number] =>
     sampleVoxelColor(grid, (idx) => p.palette[String(idx)], x, y, z);
   const m = surfaceNets(sdf, meshRes, colorAt);
@@ -72,7 +77,7 @@ function buildSdf(p: Proj): void {
   geo.setIndex(new THREE.BufferAttribute(m.indices, 1));
   obj = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ vertexColors: true }));
   scene.add(obj);
-  hud.textContent = `平滑网格 res ${meshRes} · tris ${m.indices.length / 3} · ${new Date().toLocaleTimeString()}`;
+  hud.textContent = `平滑网格 res ${meshRes} · smooth ${smoothValue} · tris ${m.indices.length / 3} · ${new Date().toLocaleTimeString()}`;
 }
 
 function rebuild(p: Proj): void {
@@ -87,6 +92,9 @@ function onProject(p: Proj): void {
   resSlider.value = String(maxAxis);
   resVal.textContent = String(maxAxis);
   meshRes = maxAxis;
+  smoothSlider.value = "1";
+  smoothVal.textContent = "1";
+  smoothValue = 1;
   rebuild(p);
 }
 
@@ -94,6 +102,7 @@ modeBtn.addEventListener("click", () => {
   mode = mode === "voxel" ? "mesh" : "voxel";
   modeBtn.textContent = mode === "voxel" ? "体素" : "平滑网格";
   resWrap.style.display = mode === "mesh" ? "flex" : "none";
+  smoothWrap.style.display = mode === "mesh" ? "flex" : "none";
   if (current) rebuild(current);
 });
 resSlider.addEventListener("input", () => {
@@ -102,6 +111,15 @@ resSlider.addEventListener("input", () => {
   if (pendingResFrame !== undefined) return;
   pendingResFrame = requestAnimationFrame(() => {
     pendingResFrame = undefined;
+    if (current && mode === "mesh") rebuild(current);
+  });
+});
+smoothSlider.addEventListener("input", () => {
+  smoothValue = Number(smoothSlider.value);
+  smoothVal.textContent = String(smoothValue);
+  if (pendingSmoothFrame !== undefined) return;
+  pendingSmoothFrame = requestAnimationFrame(() => {
+    pendingSmoothFrame = undefined;
     if (current && mode === "mesh") rebuild(current);
   });
 });
