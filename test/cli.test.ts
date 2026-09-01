@@ -80,4 +80,20 @@ describe("cli（需先 pnpm build）", () => {
     expect(r5.status).toBe(1);
     expect(r5.stderr).toContain("JSON 解析失败");
   });
+
+  it("remesh 出平滑网格 GLB", async () => {
+    if (skip) return;
+    const dir = mkdtempSync(join(tmpdir(), "vf-"));
+    const file = join(dir, "m.voxel.json");
+    expect(run(["new", file, "--size", "16"]).status).toBe(0);
+    const session = new ForgeSession(file);
+    await session.init();
+    await session.handle("box", { x0: 4, y0: 4, z0: 4, x1: 11, y1: 11, z1: 11, color: "#ff0000" });
+    const out = join(dir, "smooth.glb");
+    const r = run(["remesh", file, "--res", "24", "--out", out]);
+    expect(r.status).toBe(0);
+    expect(r.stdout).toMatch(/sdf_mesh: GLB/);
+    expect(existsSync(out)).toBe(true);
+    expect(readFileSync(out).subarray(0, 4).toString("ascii")).toBe("glTF");
+  });
 });

@@ -19,6 +19,7 @@ function usage(): string {
   voxelforge export <file> --glb out.glb | --vox out.vox
   voxelforge render <file> [--view iso|front|side|top] [--multi] [--cutaway x|y|z|quarter]
                     [--yaw 45 --pitch 30] [--out shot.png] [--size 512] [--proj ortho|persp] [--axes=false]
+  voxelforge remesh <file> [--res 64] [--smooth 1] [--color #hex] --out out.glb   # 体素→SDF→平滑网格 GLB
   voxelforge tools                            # 列出全部 18 个建模工具
   voxelforge tool <file> <name> [jsonArgs]    # 直调任一工具，参数为 JSON 对象
                                               # 例: voxelforge tool m.voxel.json box '{"x0":0,"y0":0,"z0":0,"x1":7,"y1":3,"z1":7,"color":"#9aa0a6","hollow":true}'
@@ -43,7 +44,10 @@ async function main(): Promise<number> {
       pitch: { type: "string" },
       out: { type: "string" },
       proj: { type: "string" },
-      axes: { type: "string", default: "true" }
+      axes: { type: "string", default: "true" },
+      res: { type: "string" },
+      smooth: { type: "string" },
+      color: { type: "string" }
     }
   });
   const cmd = positionals[0];
@@ -90,6 +94,20 @@ async function main(): Promise<number> {
     const p = emptyProject([size, size, size]);
     fs.writeFileSync(file, JSON.stringify(p));
     console.log(`created ${file} (${size}³)`);
+    return 0;
+  }
+
+  if (cmd === "remesh") {
+    if (!file) throw new Error("缺 <file>");
+    const session = new ForgeSession(file);
+    await session.init();
+    const args: Record<string, unknown> = {};
+    if (values.res !== undefined) args.resolution = Number(values.res);
+    if (values.smooth !== undefined) args.smooth = Number(values.smooth);
+    if (typeof values.color === "string") args.color = values.color;
+    if (typeof values.out === "string") args.path = values.out;
+    const { content } = await session.handle("sdf_mesh", args);
+    console.log(content);
     return 0;
   }
 
