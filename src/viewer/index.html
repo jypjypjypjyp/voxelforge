@@ -12,6 +12,13 @@
 </head>
 <body>
 <div id="hud">加载中…</div>
+<div id="toolbar" style="position:fixed;top:44px;left:12px;z-index:2;display:flex;gap:10px;align-items:center;background:rgba(20,22,26,.6);padding:6px 10px;border-radius:8px;">
+  <button id="modeBtn">体素</button>
+  <label id="resWrap" style="display:none;align-items:center;gap:6px;">分辨率
+    <input id="resSlider" type="range" min="8" max="128" value="64" style="width:120px;">
+    <span id="resVal">64</span>
+  </label>
+</div>
 <script>/*__BUNDLE__*/</script>
 </body>
 </html>
