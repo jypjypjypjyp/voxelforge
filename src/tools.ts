@@ -275,7 +275,7 @@ export class ForgeSession {
         const res = a.resolution ?? maxAxis;
         const field = computeSignedDistance(this.grid, { smooth: a.smooth ?? 0 });
         const colorAt = (x: number, y: number, z: number): [number, number, number] => {
-          if (a.color !== undefined) return hexToRgb01(String(a.color));
+          if (a.color !== undefined) { const c = String(a.color); Palette.normalize(c); return hexToRgb01(c); }
           const vx = Math.min(Math.max(Math.round(x - 0.5), 0), gsize[0] - 1);
           const vy = Math.min(Math.max(Math.round(y - 0.5), 0), gsize[1] - 1);
           const vz = Math.min(Math.max(Math.round(z - 0.5), 0), gsize[2] - 1);

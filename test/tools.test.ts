@@ -196,6 +196,15 @@ describe("ForgeSession", () => {
     expect(existsSync(file + ".hue.glb")).toBe(true);
   });
 
+  it("sdf_mesh 强制单色非法 hex 报错且不落盘", async () => {
+    const s = new ForgeSession(file);
+    await s.init();
+    await s.handle("create_project", { size: [16, 16, 16] });
+    await s.handle("box", { x0: 4, y0: 4, z0: 4, x1: 11, y1: 11, z1: 11, color: "#8b4513" });
+    await expect(s.handle("sdf_mesh", { resolution: 16, color: "not-a-hex", path: file + ".bad.glb" })).rejects.toThrow(/颜色格式无效/);
+    expect(existsSync(file + ".bad.glb")).toBe(false);
+  });
+
   it("sdf_mesh 空网格报错", async () => {
     const s = new ForgeSession(file);
     await s.init();
