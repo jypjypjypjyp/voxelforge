@@ -15,11 +15,11 @@
 
 ```
 voxelforge/src/core/
-  sdf.ts          computeSignedDistance(voxels, size, {smooth?}): Float32Array
-                   8SSEDT 精确欧氏距离变换；按占用定符号（占用=负，空=正）
-                   得到原生分辨率有符号距离场（cell 中心采样）
-  surfaceNets.ts  surfaceNets(field, nativeSize, outRes, colorAt): MeshData
-                   在 outRes³ 网格上三线性插值采样 SDF
+  sdf.ts          computeSignedDistance(voxels, size, {smooth?}): { data, size }
+                   8SSEDT（3-4-5 chamfer 权重）欧氏距离变换（近似欧氏）；按占用定符号（占用=负，空=正）
+                   得到原生分辨率有符号距离场（cell 中心采样）；smooth 做盒/高斯平滑
+  surfaceNets.ts  surfaceNets(field, outRes, colorAt): MeshData
+                   在 outRes（每轴按比例换算）网格上三线性插值采样 SDF
                    检测 iso=0 边交点；每 cell 1 顶点 = 边交点均值；连 quad
                    法线 = SDF 梯度（有限差分），顶点色 = colorAt(最近占用体素色)
 ```
