@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 import { parseArgs } from "node:util";
 import fs from "node:fs";
-import { ForgeSession } from "./mcp/tools.js";
+import { z } from "zod";
+import { ForgeSession, TOOLS } from "./mcp/tools.js";
 import { emptyProject } from "./core/project.js";
 import { buildMesh } from "./core/export/mesh.js";
 import { exportGlb, verifyGlb } from "./core/export/glb.js";
@@ -18,6 +19,9 @@ function usage(): string {
   voxelforge export <file> --glb out.glb | --vox out.vox
   voxelforge render <file> [--view iso|front|side|top] [--multi] [--cutaway x|y|z|quarter]
                     [--yaw 45 --pitch 30] [--out shot.png] [--size 512] [--proj ortho|persp] [--axes=false]
+  voxelforge tools                            # 列出全部 18 个建模工具
+  voxelforge tool <file> <name> [jsonArgs]    # 直调任一工具，参数为 JSON 对象
+                                              # 例: voxelforge tool m.voxel.json box '{"x0":0,"y0":0,"z0":0,"x1":7,"y1":3,"z1":7,"color":"#9aa0a6","hollow":true}'
   voxelforge-mcp <file>        # stdio MCP server`;
 }
 
@@ -46,6 +50,37 @@ async function main(): Promise<number> {
   const file = positionals[1];
 
   if (!cmd || cmd === "help" || cmd === "--help") { console.log(usage()); return 0; }
+
+  if (cmd === "tools") {
+    for (const t of TOOLS) console.log(`${t.name.padEnd(15)} ${t.description.split("。")[0]}`);
+    return 0;
+  }
+
+  if (cmd === "tool") {
+    // tool <file> <name> [jsonArgs] —— 直调任一 ForgeSession 工具（zod 校验与 MCP 层一致）
+    const [, name, jsonArg] = positionals.slice(1);
+    if (!file || !name) throw new Error("用法: voxelforge tool <file> <name> [jsonArgs]（tools 查看列表）");
+    const def = TOOLS.find((t) => t.name === name);
+    if (!def) throw new Error(`未知工具: ${name}（voxelforge tools 查看列表）`);
+    let args: Record<string, unknown> = {};
+    if (jsonArg !== undefined) {
+      try {
+        args = JSON.parse(jsonArg);
+      } catch (e) {
+        throw new Error(`参数 JSON 解析失败: ${(e as Error).message}`);
+      }
+      if (typeof args !== "object" || args === null || Array.isArray(args)) throw new Error("参数须为 JSON 对象");
+    }
+    const parsed = z.object(def.schema).safeParse(args);
+    if (!parsed.success) {
+      throw new Error(`参数校验失败: ${parsed.error.issues.map((i) => `${i.path.join(".") || "(root)"}: ${i.message}`).join("; ")}`);
+    }
+    const session = new ForgeSession(file);
+    await session.init();
+    const { content } = await session.handle(name, parsed.data as Record<string, unknown>);
+    console.log(content);
+    return 0;
+  }
 
   if (cmd === "new") {
     if (!file) throw new Error("缺 <file>");

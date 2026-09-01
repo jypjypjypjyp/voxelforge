@@ -50,4 +50,34 @@ describe("cli（需先 pnpm build）", () => {
     if (skip) return;
     expect(run(["--help"]).status).toBe(0);
   });
+
+  it("tools 列出 18 个工具", () => {
+    if (skip) return;
+    const r = run(["tools"]);
+    expect(r.status).toBe(0);
+    const names = ["box", "sphere", "check", "slice_ascii", "script", "render_png"];
+    for (const n of names) expect(r.stdout).toContain(n);
+  });
+
+  it("tool 子命令：直调 box/info + zod 错误路径", () => {
+    if (skip) return;
+    const dir = mkdtempSync(join(tmpdir(), "vf-"));
+    const file = join(dir, "m.voxel.json");
+    expect(run(["new", file, "--size", "8"]).status).toBe(0);
+    const r1 = run(["tool", file, "box", JSON.stringify({ x0: 0, y0: 0, z0: 0, x1: 1, y1: 1, z1: 1, color: "#ff0000" })]);
+    expect(r1.status).toBe(0);
+    expect(r1.stdout).toMatch(/box: \+8/);
+    const r2 = run(["tool", file, "info"]);
+    expect(r2.status).toBe(0);
+    expect(r2.stdout).toContain("voxels: 8");
+    const r3 = run(["tool", file, "box", JSON.stringify({ x0: 0 })]);
+    expect(r3.status).toBe(1);
+    expect(r3.stderr).toContain("参数校验失败");
+    const r4 = run(["tool", file, "nope"]);
+    expect(r4.status).toBe(1);
+    expect(r4.stderr).toContain("未知工具");
+    const r5 = run(["tool", file, "box", "{not json"]);
+    expect(r5.status).toBe(1);
+    expect(r5.stderr).toContain("JSON 解析失败");
+  });
 });

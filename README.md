@@ -41,6 +41,17 @@ render 还支持 `--yaw/--pitch/--out/--size/--proj/--axes=false` 等参数，�
 
 `.voxel.json`：`{ format, size, palette: {"1":"#rrggbb"}, voxels: {"x,y,z": 色号} }`（LLM 可直读直写）。
 
+## Skill 形态（推荐日常入口）
+
+除 MCP 外，项目自带 agent skill（`skill/SKILL.md`，含 18 工具 CLI 速查 + 建模闭环方法论 + 语义坑），安装：
+
+```bash
+mkdir -p ~/.agents/skills/voxel-modeling && cp skill/SKILL.md ~/.agents/skills/voxel-modeling/
+```
+
+skill 教模型用 `voxelforge tools` 发现能力、`voxelforge tool <file> <name> '<json>'` 直调任一工具（zod 校验与 MCP 同一套）。
+MCP 与 skill 两种形态可并存；一键开关 MCP：`node scripts/voxel-mcp.mjs on|off|status`。
+
 ## LLM 自检闭环
 
 `check()` → `slice_ascii` 定位 → `render_png(views:"multi")` 目检 → `highlight` 区域修改 → `undo()` 兜底 → `export` 交付。
