@@ -96,7 +96,7 @@ export function computeSignedDistance(grid: SparseVoxelGrid, opts: { smooth?: nu
   const data = new Float32Array(N);
   for (let i = 0; i < N; i++) data[i] = occ[i] ? -dEmpty[i] : dSolid[i];
   const s = opts.smooth ?? 0;
-  if (s > 0) boxBlur(data, [sx, sy, sz], s * 3);
+  if (s > 0) for (let it = 0; it < s; it++) boxBlur(data, [sx, sy, sz], 1);
   return { data, size: grid.size };
 }
 

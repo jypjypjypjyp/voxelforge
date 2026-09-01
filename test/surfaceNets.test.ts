@@ -68,4 +68,17 @@ describe("surfaceNets", () => {
     expect(m.colors.length).toBe(m.positions.length);
     expect(Math.abs(m.colors[0] - 0.5)).toBeLessThan(1e-6);
   });
+
+  it("smooth 上限 8 不至于抹平网格（仍能重建）", () => {
+    const g = new SparseVoxelGrid([24, 24, 24]);
+    for (let x = 0; x < 24; x++) for (let y = 0; y < 24; y++) for (let z = 0; z < 24; z++) {
+      const dx = x - 11.5, dy = y - 11.5, dz = z - 11.5;
+      if (dx * dx + dy * dy + dz * dz <= 7 * 7) g.set(x, y, z, 1);
+    }
+    const f = computeSignedDistance(g, { smooth: 8 });
+    const m = surfaceNets(f, 24, () => [1, 0, 0]);
+    expect(m.indices.length).toBeGreaterThan(0);
+    const bb = bboxOf(m);
+    expect(bb.max[0] - bb.min[0]).toBeGreaterThan(8); // 形状仍在（未塌缩）
+  });
 });
