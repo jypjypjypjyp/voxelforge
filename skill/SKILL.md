@@ -13,7 +13,7 @@ description: Use when 创建/修改 3D 体素模型、像素风建模、建城�
 VF=/Users/a1234/Library/CloudStorage/OneDrive-个人/Documents/鲸鱼娘/test/voxelforge/dist/cli.js
 $VF tools                                  # 列出全部 18 个工具
 $VF new /tmp/model.voxel.json --size 64    # 新建 64³ 项目（已存在加 --force）
-$VF tool /tmp/model.voxel.json box '{"x0":8,"y0":0,"z1":8,"z1":8,"x1":55,"y1":7,"color":"#9aa0a6","hollow":true,"mirror":["x"]}'
+$VF tool /tmp/model.voxel.json box '{"x0":8,"y0":0,"z0":8,"x1":55,"y1":7,"z1":55,"color":"#9aa0a6","hollow":true,"mirror":["x"]}'
 $VF tool /tmp/model.voxel.json check
 ```
 
