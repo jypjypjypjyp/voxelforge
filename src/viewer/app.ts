@@ -36,6 +36,7 @@ let mode: "voxel" | "mesh" = "voxel";
 let meshRes = 64;
 let current: Proj | null = null;
 let obj: THREE.Mesh | null = null;
+let pendingResFrame: number | undefined;
 
 function clearObj(): void {
   if (obj) { scene.remove(obj); obj.geometry.dispose(); (obj.material as THREE.Material).dispose(); obj = null; }
@@ -103,7 +104,11 @@ modeBtn.addEventListener("click", () => {
 resSlider.addEventListener("input", () => {
   meshRes = Number(resSlider.value);
   resVal.textContent = String(meshRes);
-  if (current && mode === "mesh") rebuild(current);
+  if (pendingResFrame !== undefined) return;
+  pendingResFrame = requestAnimationFrame(() => {
+    pendingResFrame = undefined;
+    if (current && mode === "mesh") rebuild(current);
+  });
 });
 
 fetch("/model").then((r) => r.json()).then((p) => { if (p && p.size) onProject(p); });
