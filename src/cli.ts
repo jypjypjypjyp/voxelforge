@@ -106,7 +106,12 @@ async function main(): Promise<number> {
     if (values.smooth !== undefined) args.smooth = Number(values.smooth);
     if (typeof values.color === "string") args.color = values.color;
     if (typeof values.out === "string") args.path = values.out;
-    const { content } = await session.handle("sdf_mesh", args);
+    const def = TOOLS.find((t) => t.name === "sdf_mesh")!;
+    const parsed = z.object(def.schema).safeParse(args);
+    if (!parsed.success) {
+      throw new Error(`参数校验失败: ${parsed.error.issues.map((i) => `${i.path.join(".") || "(root)"}: ${i.message}`).join("; ")}`);
+    }
+    const { content } = await session.handle("sdf_mesh", parsed.data as Record<string, unknown>);
     console.log(content);
     return 0;
   }
