@@ -27,14 +27,16 @@ function applyMode(text, mode) {
   let end = idIdx + 1;
   while (end < lines.length && !lines[end].startsWith("    - ")) end++;
   const body = lines.slice(idIdx + 1, end);
-  const hasDisabled = body.some((l) => l.trim() === "disabled: true");
+  const disRel = body.findIndex((l) => l.trim() === "disabled: true");
+  const hasDisabled = disRel !== -1;
   let changed = false;
   if (mode === "off" && !hasDisabled) {
     lines.splice(idIdx + 1, 0, "      disabled: true");
     changed = true;
   } else if (mode === "on" && hasDisabled) {
-    const di = lines.findIndex((l, i) => i > idIdx && i < end + 1 && l.trim() === "disabled: true");
-    if (di !== -1) { lines.splice(di, 1); changed = true; }
+    // 相对索引换算绝对索引（避免依赖可能过期的 end 快照）
+    lines.splice(idIdx + 1 + disRel, 1);
+    changed = true;
   }
   return { found: true, hasDisabled, changed, text: lines.join("\n") };
 }
