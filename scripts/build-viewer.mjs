@@ -10,6 +10,6 @@ const result = await build({
   target: "es2020",
   write: false
 });
-const html = readFileSync("src/viewer/index.html", "utf8").replace("/*__BUNDLE__*/", result.outputFiles[0].text);
+const html = readFileSync("src/viewer/index.html", "utf8").replace("/*__BUNDLE__*/", () => result.outputFiles[0].text);
 writeFileSync("dist/viewer/index.html", html);
 console.log("viewer: dist/viewer/index.html 已生成");
