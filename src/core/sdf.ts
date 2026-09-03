@@ -157,14 +157,6 @@ export function computeSignedDistance(grid: SparseVoxelGrid, opts: { smooth?: nu
   return buildSignedField(grid, opts).field;
 }
 
-/** world 坐标 → 场 cell 索引（整数格直接读，无插值）。世界 cell 中心 = origin+i+0.5 */
-export function sampleCell(f: SdfField, wx: number, wy: number, wz: number): number {
-  const fx = Math.min(Math.max(Math.round(wx - 0.5) - f.origin[0], 0), f.size[0] - 1);
-  const fy = Math.min(Math.max(Math.round(wy - 0.5) - f.origin[1], 0), f.size[1] - 1);
-  const fz = Math.min(Math.max(Math.round(wz - 0.5) - f.origin[2], 0), f.size[2] - 1);
-  return f.data[fx + fy * f.size[0] + fz * f.size[0] * f.size[1]];
-}
-
 export function sampleField(f: SdfField, wx: number, wy: number, wz: number): number {
   const [sx, sy, sz] = f.size;
   const d = f.data;
