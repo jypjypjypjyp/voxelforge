@@ -2,7 +2,14 @@
 
 LLM-native 3D 体素建模：skill + CLI + web viewer。
 
-## 快速开始
+## 安装
+
+```bash
+npm i -g voxelforge        # 全局安装（Node ≥20）；升级同命令
+voxelforge --help          # 或免装临时用: npx voxelforge
+```
+
+## 快速开始（源码开发）
 
 ```bash
 pnpm install && pnpm build

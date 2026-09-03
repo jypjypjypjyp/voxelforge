@@ -10,7 +10,9 @@ description: Use when 创建/修改 3D 体素模型、像素风建模、建城�
 ## 快速开始
 
 ```bash
-VF=/Users/a1234/Library/CloudStorage/OneDrive-个人/Documents/鲸鱼娘/test/voxelforge/dist/cli.js
+npm i -g voxelforge      # 首次安装（npm 正式包，Node ≥20）；之后升级同命令
+VF=voxelforge            # 全局安装后直接用命令名；免安装可改用 npx voxelforge（每次解析稍慢）
+# 本地仓库开发调试时：先 npm run build，再 VF="node <仓库路径>/dist/cli.js"
 $VF tools                                  # 列出全部 19 个工具
 $VF new /tmp/model.voxel.json --size 64    # 新建 64³ 项目（已存在加 --force）
 $VF tool /tmp/model.voxel.json box '{"x0":8,"y0":0,"z0":8,"x1":55,"y1":7,"z1":55,"color":"#9aa0a6","hollow":true,"mirror":["x"]}'
@@ -56,7 +58,7 @@ $VF tool /tmp/model.voxel.json check
 - 出口校验：`check` 各项**可解释**（floating/symmetry 见语义坑——合法悬挑不必归零）
 
 ### 阶段 4｜critic 评审闭环（交付前必做）
-- critic = **独立子代理评审**：用你环境里的子代理/后台任务机制派一个 fresh-context 评审员（不带你的过程叙述），简报只给三样：模型文件路径、VF 路径、用户需求原文
+- critic = **独立子代理评审**：用你环境里的子代理/后台任务机制派一个 fresh-context 评审员（不带你的过程叙述），简报只给三样：模型文件路径、VF 命令（如 `voxelforge`）、用户需求原文
 - critic 自行跑 `check`/`slice_ascii`/`render_png`，对照需求找问题；**只读不改**；输出 `PASS` 或编号清单（每条：region + 严重度 + 建议）
 - **闭环**：critic 提出问题清单 → 主代理逐条修复 → 重渲 → 再派新 critic 复审；**1-N 轮循环，直到 critic 输出 PASS（即达成最终效果）**
 - 防空转守卫：若连续两轮问题不收敛（同类问题反复出现），停止循环，把分歧点原样汇报给用户裁决——不无限循环，也不带分歧交付
@@ -101,5 +103,5 @@ $VF tool model.voxel.json script '{"code":"for (let i=0;i<10;i++) box(i*6,0,0,i*
 ## 实时 Viewer（可选）
 
 ```bash
-$VF serve /tmp/model.voxel.json   # http://127.0.0.1:4173，SSE 实时跟随每次工具调用，相机保持
+$VF serve /tmp/model.voxel.json   # http://127.0.0.1:4173，SSE 实时跟随每次工具调用；首次加载按模型 bbox 自动取景，后续编辑保持相机
 ```
