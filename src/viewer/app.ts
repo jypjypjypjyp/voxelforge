@@ -86,6 +86,27 @@ function rebuild(p: Proj): void {
   else buildSdf(p);
 }
 
+let cameraFitted = false;
+
+// 首次加载按模型 bbox 自动取景（固定相机位会看向空区域/被悬空模型挡住）；SSE 更新保持用户相机
+function fitCamera(p: Proj): void {
+  let b: [number, number, number, number, number, number] | null = null;
+  for (const k of Object.keys(p.voxels)) {
+    const [x, y, z] = k.split(",").map(Number);
+    if (!b) { b = [x, y, z, x, y, z]; continue; }
+    if (x < b[0]) b[0] = x; if (y < b[1]) b[1] = y; if (z < b[2]) b[2] = z;
+    if (x > b[3]) b[3] = x; if (y > b[4]) b[4] = y; if (z > b[5]) b[5] = z;
+  }
+  if (!b) return;
+  const cx = (b[0] + b[3]) / 2, cy = (b[1] + b[4]) / 2, cz = (b[2] + b[5]) / 2;
+  const r = Math.max(b[3] - b[0], b[4] - b[1], b[5] - b[2]) / 2 + 1;
+  const dist = (r / Math.tan((camera.fov / 2) * Math.PI / 180)) * 1.15;
+  const dir = new THREE.Vector3(1, 0.75, 1).normalize();
+  camera.position.set(cx + dir.x * dist, cy + dir.y * dist, cz + dir.z * dist);
+  controls.target.set(cx, cy, cz);
+  controls.update();
+}
+
 function onProject(p: Proj): void {
   current = p;
   const maxAxis = Math.max(...p.size);
@@ -95,6 +116,7 @@ function onProject(p: Proj): void {
   smoothSlider.value = "1";
   smoothVal.textContent = "1";
   smoothValue = 1;
+  if (!cameraFitted) { fitCamera(p); cameraFitted = true; }
   rebuild(p);
 }
 
