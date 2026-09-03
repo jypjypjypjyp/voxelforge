@@ -2,6 +2,13 @@ import http from "node:http";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { SparseVoxelGrid } from "../core/grid.js";
+import { buildMesh } from "../core/export/mesh.js";
+import { sampleVoxelColor } from "../core/color.js";
+import { buildSignedField } from "../core/sdf.js";
+import { surfaceNets } from "../core/surfaceNets.js";
+import { buildTextureFromMesh } from "../core/export/texture.js";
+import { exportGlb, verifyGlb } from "../core/export/glb.js";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -50,8 +57,54 @@ export async function startViewer(file: string, port = 4173): Promise<{ server: 
   await tryRead();
 
   const server = http.createServer((req, res) => {
-    const url = (req.url ?? "/").split("?")[0];
+    const [url, queryString] = (req.url ?? "/").split("?");
     if (url === "/healthz") { res.writeHead(200); res.end("ok"); return; }
+    if (url === "/export.glb") {
+      // 与 CLI 同一条导出管线（服务端执行），浏览器只负责下载
+      if (!lastJson) {
+        res.writeHead(503, { "content-type": "text/plain; charset=utf-8" });
+        res.end("模型尚未加载");
+        return;
+      }
+      try {
+        const q = new URLSearchParams(queryString ?? "");
+        const p = JSON.parse(lastJson);
+        if (!p || !p.size || !Object.keys(p.voxels ?? {}).length) {
+          res.writeHead(503, { "content-type": "text/plain; charset=utf-8" });
+          res.end("模型为空");
+          return;
+        }
+        const grid = SparseVoxelGrid.fromProject(p);
+        const hexAt = (i: number) => p.palette[String(i)] ?? "#ff00ff";
+        const mode = q.get("mode") === "mesh" ? "mesh" : "voxel";
+        let mesh;
+        let texture: ReturnType<typeof buildTextureFromMesh> | undefined;
+        if (mode === "mesh") {
+          const maxAxis = Math.max(...grid.size);
+          const resolution = Math.min(256, Math.max(8, Number(q.get("res")) || maxAxis));
+          const smooth = Math.min(8, Math.max(0, Number(q.get("smooth")) || 0));
+          const { field } = buildSignedField(grid, { smooth });
+          mesh = surfaceNets(field, resolution, (x, y, z) => sampleVoxelColor(grid, hexAt, x, y, z));
+          if (mesh.indices.length === 0) throw new Error("SDF 表面未捕捉到任何面（分辨率过小或模型过薄）");
+          if (q.get("texture") !== "0") texture = buildTextureFromMesh(mesh);
+        } else {
+          mesh = buildMesh(grid.coords(), hexAt);
+          if (q.get("texture") === "1") texture = buildTextureFromMesh(mesh);
+        }
+        const buf = exportGlb(mesh, texture ? { texture: { png: texture.png, uvs: texture.uvs } } : undefined);
+        verifyGlb(buf); // 结构闸门，与 CLI 一致
+        const baseName = base.replace(/\.voxel\.json$/, "");
+        res.writeHead(200, {
+          "content-type": "model/gltf-binary",
+          "content-disposition": `attachment; filename="${baseName}.${mode}.glb"`
+        });
+        res.end(buf);
+      } catch (e) {
+        res.writeHead(500, { "content-type": "text/plain; charset=utf-8" });
+        res.end(String((e as Error).message ?? e));
+      }
+      return;
+    }
     if (url === "/model") {
       res.writeHead(200, { "content-type": "application/json", "cache-control": "no-store" });
       res.end(lastJson || "{}");

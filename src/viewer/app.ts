@@ -9,6 +9,7 @@ import type { VoxelProject } from "../core/types.js";
 
 const hud = document.getElementById("hud")!;
 const modeBtn = document.getElementById("modeBtn")! as HTMLButtonElement;
+const exportBtn = document.getElementById("exportBtn")! as HTMLButtonElement;
 const resWrap = document.getElementById("resWrap")! as HTMLElement;
 const resSlider = document.getElementById("resSlider")! as HTMLInputElement;
 const resVal = document.getElementById("resVal")! as HTMLElement;
@@ -119,6 +120,37 @@ function onProject(p: Proj): void {
   if (!cameraFitted) { fitCamera(p); cameraFitted = true; }
   rebuild(p);
 }
+
+exportBtn.addEventListener("click", async () => {
+  if (!current || exportBtn.disabled) return;
+  exportBtn.disabled = true;
+  const prev = hud.textContent;
+  hud.textContent = "导出中…";
+  try {
+    const q = new URLSearchParams({ mode });
+    if (mode === "mesh") {
+      q.set("res", String(meshRes));
+      q.set("smooth", String(smoothValue));
+      q.set("texture", "1");
+    }
+    const r = await fetch(`/export.glb?${q}`);
+    if (!r.ok) throw new Error(await r.text());
+    const dispo = r.headers.get("content-disposition") ?? "";
+    const name = dispo.match(/filename="([^"]+)"/)?.[1] ?? "voxelforge.glb";
+    const blob = await r.blob();
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = name;
+    a.click();
+    URL.revokeObjectURL(a.href);
+    hud.textContent = `已导出 ${name}（${(blob.size / 1024).toFixed(0)} KB）`;
+  } catch (e) {
+    hud.textContent = "导出失败: " + (e as Error).message;
+  } finally {
+    exportBtn.disabled = false;
+    setTimeout(() => { hud.textContent = prev; }, 4000);
+  }
+});
 
 modeBtn.addEventListener("click", () => {
   mode = mode === "voxel" ? "mesh" : "voxel";

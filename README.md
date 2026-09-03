@@ -14,7 +14,7 @@ voxelforge --help          # 或免装临时用: npx voxelforge
 ```bash
 pnpm install && pnpm build
 node dist/cli.js new model.voxel.json --size 64
-node dist/cli.js serve model.voxel.json   # 浏览器打开 http://127.0.0.1:4173
+node dist/cli.js serve model.voxel.json   # 浏览器打开 http://127.0.0.1:4173（工具栏可导出 GLB：体素/平滑网格带贴图）
 ```
 
 端到端示例（骨架 → check → 细节 → render 目检）：

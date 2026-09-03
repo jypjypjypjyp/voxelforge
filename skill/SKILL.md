@@ -105,3 +105,5 @@ $VF tool model.voxel.json script '{"code":"for (let i=0;i<10;i++) box(i*6,0,0,i*
 ```bash
 $VF serve /tmp/model.voxel.json   # http://127.0.0.1:4173，SSE 实时跟随每次工具调用；首次加载按模型 bbox 自动取景，后续编辑保持相机
 ```
+
+工具栏「导出 GLB」按钮：按当前视图导出——体素模式=方块 GLB（顶点色），平滑网格模式=当前分辨率/平滑度的 GLB（自动带调色板图集贴图+UV）。也可直接 GET `/export.glb?mode=voxel|mesh&res=N&smooth=N&texture=0|1`。
