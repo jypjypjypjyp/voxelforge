@@ -4,6 +4,7 @@ import { Palette } from "../src/core/palette.js";
 import { buildMesh } from "../src/core/export/mesh.js";
 import type { MeshData } from "../src/core/export/mesh.js";
 import { exportGlb, verifyGlb } from "../src/core/export/glb.js";
+import { buildTextureFromMesh } from "../src/core/export/texture.js";
 
 function boxMesh(): MeshData {
   const g = new SparseVoxelGrid([8, 8, 8]);
@@ -92,5 +93,60 @@ describe("GLB 导出与结构闸门", () => {
   it("空网格导出被拒绝（非法 min/max）", () => {
     const empty: MeshData = { positions: new Float32Array(0), normals: new Float32Array(0), colors: new Float32Array(0), indices: new Uint32Array(0) };
     expect(() => exportGlb(empty)).toThrow(/空网格/);
+  });
+});
+
+describe("纹理导出（贴图 GLB）", () => {
+  it("buildTextureFromMesh：单色模型 1 texel、UV 在 [0,1]、PNG 魔数", () => {
+    const m = boxMesh(); // 单色 #8b4513
+    const t = buildTextureFromMesh(m);
+    expect(t.colors).toBe(1);
+    expect(t.uvs.length).toBe((m.positions.length / 3) * 2);
+    for (const v of t.uvs) {
+      expect(v).toBeGreaterThanOrEqual(0);
+      expect(v).toBeLessThanOrEqual(1);
+    }
+    expect(t.png.subarray(1, 4).toString("ascii")).toBe("PNG");
+    expect(t.width).toBeGreaterThanOrEqual(1);
+    expect(t.width).toBe(t.height);
+  });
+
+  it("多色模型 texel 数 = 唯一色数，尺寸为 2 的幂", () => {
+    const g = new SparseVoxelGrid([8, 8, 8]);
+    g.set(0, 0, 0, 1);
+    g.set(1, 0, 0, 2);
+    const pal = new Palette({ "1": "#ff0000", "2": "#00ff00" });
+    const m = buildMesh(g.coords(), (i) => pal.hexOf(i));
+    const t = buildTextureFromMesh(m);
+    expect(t.colors).toBe(2);
+    expect(Number.isInteger(Math.log2(t.width))).toBe(true);
+    expect(Number.isInteger(Math.log2(t.height))).toBe(true);
+    // 两色 UV 指向不同 texel
+    const key = (i: number) => `${t.uvs[2 * i].toFixed(4)},${t.uvs[2 * i + 1].toFixed(4)}`;
+    expect(key(0)).not.toBe(key(m.positions.length / 3 - 1));
+  });
+
+  it("exportGlb 纹理模式：TEXCOORD_0 + baseColorTexture + 去掉 COLOR_0 + verifyGlb 通过", () => {
+    const m = boxMesh();
+    const t = buildTextureFromMesh(m);
+    const buf = exportGlb(m, { texture: { png: t.png, uvs: t.uvs } });
+    const v = verifyGlb(buf);
+    expect(v.tris).toBe(104);
+    const prim = (v.json.meshes as Array<Record<string, any>>)[0].primitives[0];
+    expect(prim.attributes.TEXCOORD_0).toBeDefined();
+    expect(prim.attributes.COLOR_0).toBeUndefined();
+    expect((v.json.images as unknown[]).length).toBe(1);
+    expect((v.json.images as Array<Record<string, unknown>>)[0].mimeType).toBe("image/png");
+    expect((v.json.samplers as unknown[]).length).toBe(1);
+    expect((v.json.textures as unknown[]).length).toBe(1);
+    const mat = (v.json.materials as Array<Record<string, any>>)[0];
+    expect(mat.pbrMetallicRoughness.baseColorTexture).toBeDefined();
+    expect(mat.pbrMetallicRoughness.baseColorTexture.index).toBe(0);
+  });
+
+  it("uv 数量与顶点不符时报错", () => {
+    const m = boxMesh();
+    const t = buildTextureFromMesh(m);
+    expect(() => exportGlb(m, { texture: { png: t.png, uvs: t.uvs.subarray(0, 10) } })).toThrow(/UV/);
   });
 });

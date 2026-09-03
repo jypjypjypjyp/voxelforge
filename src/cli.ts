@@ -19,7 +19,7 @@ function usage(): string {
   voxelforge export <file> --glb out.glb | --vox out.vox
   voxelforge render <file> [--view iso|front|side|top] [--multi] [--cutaway x|y|z|quarter]
                     [--yaw 45 --pitch 30] [--out shot.png] [--size 512] [--proj ortho|persp] [--axes=false]
-  voxelforge remesh <file> [--res 64] [--smooth 1] [--color #hex] --out out.glb   # 体素→SDF→平滑网格 GLB
+  voxelforge remesh <file> [--res 64] [--smooth 1] [--color #hex] [--texture] --out out.glb   # 体素→SDF→平滑网格 GLB（--texture 带调色板贴图+UV）
   voxelforge tools                            # 列出全部 19 个建模工具
   voxelforge tool <file> <name> [jsonArgs]    # 直调任一工具，参数为 JSON 对象
                                               # 例: voxelforge tool m.voxel.json box '{"x0":0,"y0":0,"z0":0,"x1":7,"y1":3,"z1":7,"color":"#9aa0a6","hollow":true}'
@@ -47,7 +47,8 @@ async function main(): Promise<number> {
       axes: { type: "string", default: "true" },
       res: { type: "string" },
       smooth: { type: "string" },
-      color: { type: "string" }
+      color: { type: "string" },
+      texture: { type: "boolean", default: false }
     }
   });
   const cmd = positionals[0];
@@ -105,6 +106,7 @@ async function main(): Promise<number> {
     if (values.res !== undefined) args.resolution = Number(values.res);
     if (values.smooth !== undefined) args.smooth = Number(values.smooth);
     if (typeof values.color === "string") args.color = values.color;
+    if (values.texture) args.texture = true;
     if (typeof values.out === "string") args.path = values.out;
     const def = TOOLS.find((t) => t.name === "sdf_mesh")!;
     const parsed = z.object(def.schema).safeParse(args);

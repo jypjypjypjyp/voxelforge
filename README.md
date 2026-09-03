@@ -34,7 +34,7 @@ node examples/build-castle.mjs
 | `voxelforge export <file> --glb out.glb \| --vox out.vox` | 导出 |
 | `voxelforge tools` / `voxelforge tool <file> <name> '<json>'` | 直调 19 个建模工具 |
 | `voxelforge render <file> [--multi] [--cutaway q] [--view iso]` | 渲染 PNG |
-| `voxelforge remesh <file> [--res N] [--smooth S] [--color #hex] --out out.glb` | 体素→SDF→Surface Nets→平滑网格 GLB |
+| `voxelforge remesh <file> [--res N] [--smooth S] [--color #hex] [--texture] --out out.glb` | 体素→SDF→Surface Nets→平滑网格 GLB（`--texture` 导出调色板图集贴图+UV，替代顶点色） |
 
 render 还支持 `--yaw/--pitch/--out/--size/--proj/--axes=false` 等参数，详见 `node dist/cli.js` 用法输出。
 

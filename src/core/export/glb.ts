@@ -1,7 +1,19 @@
 import type { MeshData } from "./mesh.js";
 
-export function exportGlb(mesh: MeshData): Buffer {
+export interface GlbTexture {
+  /** 内嵌 PNG（调色板图集） */
+  png: Buffer;
+  /** 每顶点 2 分量 UV */
+  uvs: Float32Array;
+}
+
+export function exportGlb(mesh: MeshData, opts?: { texture?: GlbTexture }): Buffer {
   if (mesh.positions.length === 0) throw new Error("空网格无法导出 GLB（无顶点）");
+  const tex = opts?.texture;
+  const vertCount = mesh.positions.length / 3;
+  if (tex && tex.uvs.length !== vertCount * 2) {
+    throw new Error(`UV 数量与顶点不符: ${tex.uvs.length / 2} ≠ ${vertCount}`);
+  }
   const binParts: Buffer[] = [];
   const views: Array<Record<string, number>> = [];
   const accessors: Array<Record<string, unknown>> = [];
@@ -28,33 +40,48 @@ export function exportGlb(mesh: MeshData): Buffer {
   }
   pushView(p, 5126, "VEC3", p.length / 3, { min, max });
   pushView(mesh.normals, 5126, "VEC3", mesh.normals.length / 3);
-  pushView(mesh.colors, 5126, "VEC3", mesh.colors.length / 3);
+  if (tex) pushView(tex.uvs, 5126, "VEC2", vertCount);
+  else pushView(mesh.colors, 5126, "VEC3", mesh.colors.length / 3);
   pushView(mesh.indices, 5125, "SCALAR", mesh.indices.length);
+  // 内嵌贴图（最后一个 bufferView；前置视图均为 4 字节倍数，offset 天然对齐）
+  if (tex) {
+    binParts.push(tex.png);
+    views.push({ buffer: 0, byteOffset: offset, byteLength: tex.png.length });
+    offset += tex.png.length;
+  }
 
   const bin = Buffer.concat(binParts);
   const binPad = (4 - (bin.length % 4)) % 4;
   const binChunk = Buffer.concat([bin, Buffer.alloc(binPad, 0)]);
 
-  const gltf = {
+  const attributes: Record<string, number> = { POSITION: 0, NORMAL: 1 };
+  if (tex) attributes.TEXCOORD_0 = 2;
+  else attributes.COLOR_0 = 2;
+  const material: Record<string, unknown> = tex
+    ? { pbrMetallicRoughness: { baseColorTexture: { index: 0 }, metallicFactor: 0, roughnessFactor: 1 }, doubleSided: false }
+    : { pbrMetallicRoughness: { baseColorFactor: [1, 1, 1, 1], metallicFactor: 0, roughnessFactor: 1 }, doubleSided: false };
+  const gltf: Record<string, unknown> = {
     asset: { version: "2.0", generator: "voxelforge" },
     scene: 0,
     scenes: [{ nodes: [0] }],
     nodes: [{ mesh: 0 }],
     meshes: [{
       primitives: [{
-        attributes: { POSITION: 0, NORMAL: 1, COLOR_0: 2 },
+        attributes,
         indices: 3,
         material: 0
       }]
     }],
-    materials: [{
-      pbrMetallicRoughness: { baseColorFactor: [1, 1, 1, 1], metallicFactor: 0, roughnessFactor: 1 },
-      doubleSided: false
-    }],
+    materials: [material],
     buffers: [{ byteLength: binChunk.length }],
     bufferViews: views,
     accessors
   };
+  if (tex) {
+    gltf.images = [{ bufferView: views.length - 1, mimeType: "image/png" }];
+    gltf.samplers = [{ magFilter: 9728, minFilter: 9728, wrapS: 33071, wrapT: 33071 }];
+    gltf.textures = [{ sampler: 0, source: 0 }];
+  }
 
   let jsonBuf = Buffer.from(JSON.stringify(gltf), "utf8");
   const jsonPad = (4 - (jsonBuf.length % 4)) % 4;

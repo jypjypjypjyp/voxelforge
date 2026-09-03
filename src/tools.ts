@@ -12,6 +12,7 @@ import { runScript } from "./core/script.js";
 import { sliceAscii } from "./core/slice.js";
 import { checkGrid, formatCheck } from "./core/check.js";
 import { exportGlb, verifyGlb } from "./core/export/glb.js";
+import { buildTextureFromMesh } from "./core/export/texture.js";
 import { buildMesh, hexToRgb01 } from "./core/export/mesh.js";
 import { buildSignedField } from "./core/sdf.js";
 import { surfaceNets, signedVolume, bboxOf } from "./core/surfaceNets.js";
@@ -62,7 +63,7 @@ export const TOOLS: ToolDef[] = [
   { name: "script", description: "vm 沙箱跑 JS 批量生成（同步代码，5s 超时，失败自动回滚）。API: box/sphere/cylinder/line/set/unset/paint/erase/translate/palette(hex)/size/log。示例: {code:'for(let i=0;i<10;i++) box(i*6,0,0,i*6+2,5,2,\"#8B4513\")'}", schema: { code: z.string(), timeoutMs: z.number().int().optional() } },
   { name: "export", description: "导出 GLB 或 .vox（返回结构校验摘要）", schema: { format: z.enum(["glb", "vox"]), path: z.string().optional() } },
   { name: "render_png", description: "渲染 PNG 供视觉自检：view 预设/yaw+pitch、views:'multi' 三视图合一、cutaway 剖切、highlight 区域红框。axes 地面参照层默认单视图开启、multi 关闭（避免与 highlight 红框冲突）。示例: {views:'multi',size:512}", schema: { view: z.enum(["iso", "front", "side", "top"]).optional(), yaw: z.number().optional(), pitch: z.number().optional(), views: z.enum(["single", "multi"]).optional(), size: z.number().int().optional(), proj: z.enum(["ortho", "persp"]).optional(), cutaway: z.enum(["x", "y", "z", "quarter"]).optional(), highlight: z.array(z.number().int()).length(6).optional(), axes: z.boolean().optional(), path: z.string().optional() } },
-  { name: "sdf_mesh", description: "体素→有符号距离场→Surface Nets 重建平滑网格并出 GLB。参数: resolution(立方最大轴边长,默认=体素size), color(平涂单色,缺省采样最近体素色), smooth, path。示例: {resolution:32}", schema: { resolution: z.number().int().min(1).max(256).optional(), color: z.string().optional(), smooth: z.number().int().min(0).max(8).optional(), path: z.string().optional() } }
+  { name: "sdf_mesh", description: "体素→有符号距离场→Surface Nets 重建平滑网格并出 GLB。参数: resolution(立方最大轴边长,默认=体素size), color(平涂单色,缺省采样最近体素色), smooth, texture(true=导出带调色板图集贴图+UV 的 GLB,替代顶点色), path。示例: {resolution:32}", schema: { resolution: z.number().int().min(1).max(256).optional(), color: z.string().optional(), smooth: z.number().int().min(0).max(8).optional(), texture: z.boolean().optional(), path: z.string().optional() } }
 ];
 
 export class ForgeSession {
@@ -286,13 +287,20 @@ export class ForgeSession {
         }
         const mesh = surfaceNets(field, res, colorAt);
         if (mesh.indices.length === 0) throw new Error("SDF 表面未捕捉到任何面（模型可能占满/全空，或分辨率过小）");
-        const buf = exportGlb(mesh);
+        let textureNote = "";
+        let glbOpts: Parameters<typeof exportGlb>[1];
+        if (a.texture) {
+          const tex = buildTextureFromMesh(mesh);
+          glbOpts = { texture: { png: tex.png, uvs: tex.uvs } };
+          textureNote = `，纹理 ${tex.width}×${tex.height}（${tex.colors} 色）`;
+        }
+        const buf = exportGlb(mesh, glbOpts);
         const out = a.path ?? `${this.file.replace(/\.voxel\.json$/, "")}_sdf_r${res}.glb`;
         await fs.writeFile(out, buf);
         const v = verifyGlb(buf);
         const bb = bboxOf(mesh);
         const vol = signedVolume(mesh);
-        return { content: `sdf_mesh: GLB ${out}（${v.tris} tris, ${mesh.positions.length / 3} verts, bbox (${bb.min[0].toFixed(1)},${bb.min[1].toFixed(1)},${bb.min[2].toFixed(1)})-(${bb.max[0].toFixed(1)},${bb.max[1].toFixed(1)},${bb.max[2].toFixed(1)}), 体积 ${vol.toFixed(1)}, 结构闸门通过）` };
+        return { content: `sdf_mesh: GLB ${out}（${v.tris} tris, ${mesh.positions.length / 3} verts, bbox (${bb.min[0].toFixed(1)},${bb.min[1].toFixed(1)},${bb.min[2].toFixed(1)})-(${bb.max[0].toFixed(1)},${bb.max[1].toFixed(1)},${bb.max[2].toFixed(1)}), 体积 ${vol.toFixed(1)}${textureNote}, 结构闸门通过）` };
       }
       case "export": {
         if (a.format === "glb") {

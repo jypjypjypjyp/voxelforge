@@ -4,6 +4,7 @@ import { existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { readFile } from "node:fs/promises";
+import { verifyGlb } from "../src/core/export/glb.js";
 import { ForgeSession } from "../src/tools.js";
 
 let file: string;
@@ -210,5 +211,23 @@ describe("ForgeSession", () => {
     await s.init();
     await s.handle("create_project", { size: [8, 8, 8] });
     await expect(s.handle("sdf_mesh", {})).rejects.toThrow(/空/);
+  });
+
+  it("sdf_mesh texture:true 出带贴图 GLB（默认色采样与强制单色两路径）", async () => {
+    const s = new ForgeSession(file);
+    await s.init();
+    await s.handle("create_project", { size: [16, 16, 16] });
+    await s.handle("box", { x0: 4, y0: 4, z0: 4, x1: 11, y1: 11, z1: 11, color: "#8b4513" });
+    const p1 = file.replace(/\.voxel\.json$/, "") + "_sdf_tex.glb";
+    const r = await s.handle("sdf_mesh", { resolution: 24, texture: true, path: p1 });
+    expect(r.content).toMatch(/纹理 \d+×\d+/);
+    const v = verifyGlb(await readFile(p1));
+    expect(((v.json.textures as unknown[]) ?? []).length).toBe(1);
+    expect((v.json.meshes as Array<Record<string, any>>)[0].primitives[0].attributes.TEXCOORD_0).toBeDefined();
+    // 强制单色 + 贴图：1 texel
+    const p2 = file + ".hue_tex.glb";
+    await s.handle("sdf_mesh", { resolution: 16, color: "#ff0000", texture: true, path: p2 });
+    const v2 = verifyGlb(await readFile(p2));
+    expect(((v2.json.textures as unknown[]) ?? []).length).toBe(1);
   });
 });

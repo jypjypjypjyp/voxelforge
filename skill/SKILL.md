@@ -38,7 +38,7 @@ $VF tool /tmp/model.voxel.json check
 | `script` | 批量生成 | vm 沙箱跑 JS（见下） |
 | `export` | 导出 | `{format:"glb"}` 或 `"vox"` |
 | `render_png` | 渲染目检 | `{views:"multi", path:"/abs/out.png"}` 三视图合一；`highlight:[x0,y0,z0,x1,y1,z1]` 描红；输出路径字段是 **`path`** |
-| `sdf_mesh` | 体素→平滑网格 | `{resolution:32}`（立方最大轴边长,默认=体素size）；`color` 平涂单色/缺省采样最近体素色；`smooth` 0-8；出 GLB（结构闸门通过） |
+| `sdf_mesh` | 体素→平滑网格 | `{resolution:32}`（立方最大轴边长,默认=体素size）；`color` 平涂单色/缺省采样最近体素色；`smooth` 0-8；`texture:true` 导出调色板图集贴图+UV 的 GLB（NEAREST 采样零渗色，替代顶点色）；出 GLB（结构闸门通过） |
 
 ## 建模工作流（仿雕刻：粗坯 → 细雕 → 精修 → critic 评审闭环）
 
