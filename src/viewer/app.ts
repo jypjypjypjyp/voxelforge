@@ -133,7 +133,9 @@ function setMode(m: Mode): void {
   if (current) rebuild(current);
 }
 
-// res/smooth 滑杆共用一帧节流
+// res/smooth 滑杆共用一帧节流。
+// ⚠️ 后台标签的 rAF 会整体暂停：拖动后切走，pendingFrame 悬挂导致回到前台也不重建——
+// 用 visibilitychange 兜底（回前台且有 pending 变更则立即重建）。
 function scheduleRebuild(): void {
   if (pendingFrame !== undefined) return;
   pendingFrame = requestAnimationFrame(() => {
@@ -141,6 +143,14 @@ function scheduleRebuild(): void {
     if (current && mode === "mesh") rebuild(current);
   });
 }
+
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden && pendingFrame !== undefined && current && mode === "mesh") {
+    cancelAnimationFrame(pendingFrame);
+    pendingFrame = undefined;
+    rebuild(current);
+  }
+});
 
 exportBtn.addEventListener("click", async () => {
   if (!current || exportBtn.disabled) return;
