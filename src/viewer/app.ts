@@ -4,11 +4,13 @@ import { SparseVoxelGrid } from "../core/grid.js";
 import { computeSignedDistance } from "../core/sdf.js";
 import { surfaceNets } from "../core/surfaceNets.js";
 import { buildMesh } from "../core/export/mesh.js";
+import type { MeshData } from "../core/export/mesh.js";
 import { sampleVoxelColor } from "../core/color.js";
 import type { VoxelProject } from "../core/types.js";
 
 const hud = document.getElementById("hud")!;
-const modeBtn = document.getElementById("modeBtn")! as HTMLButtonElement;
+const modeVoxelBtn = document.getElementById("modeVoxelBtn")! as HTMLButtonElement;
+const modeMeshBtn = document.getElementById("modeMeshBtn")! as HTMLButtonElement;
 const exportBtn = document.getElementById("exportBtn")! as HTMLButtonElement;
 const resWrap = document.getElementById("resWrap")! as HTMLElement;
 const resSlider = document.getElementById("resSlider")! as HTMLInputElement;
@@ -37,13 +39,26 @@ scene.add(sun);
 scene.add(new THREE.GridHelper(128, 16, 0x3a3f47, 0x262a30));
 
 type Proj = VoxelProject;
-let mode: "voxel" | "mesh" = "voxel";
+type Mode = "voxel" | "mesh";
+let mode: Mode = "voxel";
 let meshRes = 64;
 let current: Proj | null = null;
 let obj: THREE.Mesh | null = null;
-let pendingResFrame: number | undefined;
+let pendingFrame: number | undefined;
 let smoothValue = 1;
-let pendingSmoothFrame: number | undefined;
+let cameraFitted = false;
+let slidersInit = false;
+
+function addToScene(m: MeshData): void {
+  clearObj();
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.BufferAttribute(m.positions, 3));
+  geo.setAttribute("normal", new THREE.BufferAttribute(m.normals, 3));
+  geo.setAttribute("color", new THREE.BufferAttribute(m.colors, 3));
+  geo.setIndex(new THREE.BufferAttribute(m.indices, 1));
+  obj = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ vertexColors: true }));
+  scene.add(obj);
+}
 
 function clearObj(): void {
   if (obj) { scene.remove(obj); obj.geometry.dispose(); (obj.material as THREE.Material).dispose(); obj = null; }
@@ -54,14 +69,7 @@ function buildVoxel(p: Proj): void {
     const [x, y, z] = k.split(",").map(Number);
     return [x, y, z, idx] as [number, number, number, number];
   });
-  const m = buildMesh(entries, (i) => p.palette[String(i)] ?? "#ff00ff");
-  const geo = new THREE.BufferGeometry();
-  geo.setAttribute("position", new THREE.BufferAttribute(m.positions, 3));
-  geo.setAttribute("normal", new THREE.BufferAttribute(m.normals, 3));
-  geo.setAttribute("color", new THREE.BufferAttribute(m.colors, 3));
-  geo.setIndex(new THREE.BufferAttribute(m.indices, 1));
-  obj = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ vertexColors: true }));
-  scene.add(obj);
+  addToScene(buildMesh(entries, (i) => p.palette[String(i)] ?? "#ff00ff"));
   hud.textContent = `体素 ${entries.length} · 网格 ${p.size.join("x")} · ${new Date().toLocaleTimeString()}`;
 }
 
@@ -71,23 +79,14 @@ function buildSdf(p: Proj): void {
   const colorAt = (x: number, y: number, z: number): [number, number, number] =>
     sampleVoxelColor(grid, (idx) => p.palette[String(idx)], x, y, z);
   const m = surfaceNets(sdf, meshRes, colorAt);
-  const geo = new THREE.BufferGeometry();
-  geo.setAttribute("position", new THREE.BufferAttribute(m.positions, 3));
-  geo.setAttribute("normal", new THREE.BufferAttribute(m.normals, 3));
-  geo.setAttribute("color", new THREE.BufferAttribute(m.colors, 3));
-  geo.setIndex(new THREE.BufferAttribute(m.indices, 1));
-  obj = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ vertexColors: true }));
-  scene.add(obj);
+  addToScene(m);
   hud.textContent = `平滑网格 res ${meshRes} · smooth ${smoothValue} · tris ${m.indices.length / 3} · ${new Date().toLocaleTimeString()}`;
 }
 
 function rebuild(p: Proj): void {
-  clearObj();
   if (mode === "voxel") buildVoxel(p);
   else buildSdf(p);
 }
-
-let cameraFitted = false;
 
 // 首次加载按模型 bbox 自动取景（固定相机位会看向空区域/被悬空模型挡住）；SSE 更新保持用户相机
 function fitCamera(p: Proj): void {
@@ -110,15 +109,37 @@ function fitCamera(p: Proj): void {
 
 function onProject(p: Proj): void {
   current = p;
-  const maxAxis = Math.max(...p.size);
-  resSlider.value = String(maxAxis);
-  resVal.textContent = String(maxAxis);
-  meshRes = maxAxis;
-  smoothSlider.value = "1";
-  smoothVal.textContent = "1";
-  smoothValue = 1;
+  // 滑杆默认值仅首次设定：SSE 编辑推送不打断用户已调的 res/smooth
+  if (!slidersInit) {
+    meshRes = Math.max(...p.size);
+    resSlider.value = String(meshRes);
+    resVal.textContent = String(meshRes);
+    smoothValue = 1;
+    smoothSlider.value = "1";
+    smoothVal.textContent = "1";
+    slidersInit = true;
+  }
   if (!cameraFitted) { fitCamera(p); cameraFitted = true; }
   rebuild(p);
+}
+
+function setMode(m: Mode): void {
+  if (mode === m) return;
+  mode = m;
+  modeVoxelBtn.classList.toggle("active", m === "voxel");
+  modeMeshBtn.classList.toggle("active", m === "mesh");
+  resWrap.style.display = m === "mesh" ? "flex" : "none";
+  smoothWrap.style.display = m === "mesh" ? "flex" : "none";
+  if (current) rebuild(current);
+}
+
+// res/smooth 滑杆共用一帧节流
+function scheduleRebuild(): void {
+  if (pendingFrame !== undefined) return;
+  pendingFrame = requestAnimationFrame(() => {
+    pendingFrame = undefined;
+    if (current && mode === "mesh") rebuild(current);
+  });
 }
 
 exportBtn.addEventListener("click", async () => {
@@ -152,30 +173,18 @@ exportBtn.addEventListener("click", async () => {
   }
 });
 
-modeBtn.addEventListener("click", () => {
-  mode = mode === "voxel" ? "mesh" : "voxel";
-  modeBtn.textContent = mode === "voxel" ? "体素" : "平滑网格";
-  resWrap.style.display = mode === "mesh" ? "flex" : "none";
-  smoothWrap.style.display = mode === "mesh" ? "flex" : "none";
-  if (current) rebuild(current);
-});
+modeVoxelBtn.addEventListener("click", () => setMode("voxel"));
+modeMeshBtn.addEventListener("click", () => setMode("mesh"));
+
 resSlider.addEventListener("input", () => {
   meshRes = Number(resSlider.value);
   resVal.textContent = String(meshRes);
-  if (pendingResFrame !== undefined) return;
-  pendingResFrame = requestAnimationFrame(() => {
-    pendingResFrame = undefined;
-    if (current && mode === "mesh") rebuild(current);
-  });
+  scheduleRebuild();
 });
 smoothSlider.addEventListener("input", () => {
   smoothValue = Number(smoothSlider.value);
   smoothVal.textContent = String(smoothValue);
-  if (pendingSmoothFrame !== undefined) return;
-  pendingSmoothFrame = requestAnimationFrame(() => {
-    pendingSmoothFrame = undefined;
-    if (current && mode === "mesh") rebuild(current);
-  });
+  scheduleRebuild();
 });
 
 fetch("/model").then((r) => r.json()).then((p) => { if (p && p.size) onProject(p); });
