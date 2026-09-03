@@ -15,7 +15,7 @@ import { exportGlb, verifyGlb } from "./core/export/glb.js";
 import { buildTextureFromMesh } from "./core/export/texture.js";
 import { buildMesh, hexToRgb01 } from "./core/export/mesh.js";
 import { buildSignedField } from "./core/sdf.js";
-import { surfaceNets, signedVolume, bboxOf } from "./core/surfaceNets.js";
+import { surfaceNets, signedVolume, bboxOf, SURFACE_EMPTY_MSG } from "./core/surfaceNets.js";
 import { makeDenseColorSampler } from "./core/color.js";
 import { exportVox, verifyVox } from "./core/export/vox.js";
 import { encodePng } from "./core/export/png.js";
@@ -286,7 +286,7 @@ export class ForgeSession {
           colorAt = makeDenseColorSampler(field, idx, (i) => this.palette.hexOf(i) ?? "#888888");
         }
         const mesh = surfaceNets(field, res, colorAt);
-        if (mesh.indices.length === 0) throw new Error("SDF 表面未捕捉到任何面（模型可能占满/全空，或分辨率过小）");
+        if (mesh.indices.length === 0) throw new Error(SURFACE_EMPTY_MSG);
         let textureNote = "";
         let glbOpts: Parameters<typeof exportGlb>[1];
         if (a.texture) {

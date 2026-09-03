@@ -1,6 +1,13 @@
 import type { MeshData } from "./export/mesh.js";
 import { sampleField, type SdfField } from "./sdf.js";
 
+// 最小厚度约束：节点值是 8 邻胞 SDF 的三线性平均，节点严格为负才有面。
+// 因此模型中必须存在 2×2×2 全实心胞块（某格点 8 邻胞全实）。
+// 1×1 线材 / 单层薄片（无 2×2 截面）在任何分辨率与 smooth 下都无负节点——
+// 提高 res 无效；模型其他部分有面时薄特征会被静默丢弃（不报错）。
+export const SURFACE_EMPTY_MSG =
+  "SDF 表面未捕捉到任何面：模型缺少 2×2×2 全实心胞块（1×1 线材/单层薄片在任何分辨率与 smooth 下都无负节点），或模型占满/全空——把特征截面加厚到 ≥2×2；方块导出无此限制（export glb）";
+
 // cell 角点偏移（第 i 个角）：i = a*4 + b*2 + c → (a,b,c)
 const CORN: Array<[number, number, number]> = [];
 for (let a = 0; a < 2; a++) for (let b = 0; b < 2; b++) for (let c = 0; c < 2; c++) CORN.push([a, b, c]);

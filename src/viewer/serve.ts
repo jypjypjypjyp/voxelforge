@@ -6,7 +6,7 @@ import { SparseVoxelGrid } from "../core/grid.js";
 import { buildMesh } from "../core/export/mesh.js";
 import { sampleVoxelColor } from "../core/color.js";
 import { buildSignedField } from "../core/sdf.js";
-import { surfaceNets } from "../core/surfaceNets.js";
+import { surfaceNets, SURFACE_EMPTY_MSG } from "../core/surfaceNets.js";
 import { buildTextureFromMesh } from "../core/export/texture.js";
 import { exportGlb, verifyGlb } from "../core/export/glb.js";
 
@@ -85,7 +85,7 @@ export async function startViewer(file: string, port = 4173): Promise<{ server: 
           const smooth = Math.min(8, Math.max(0, Number(q.get("smooth")) || 0));
           const { field } = buildSignedField(grid, { smooth });
           mesh = surfaceNets(field, resolution, (x, y, z) => sampleVoxelColor(grid, hexAt, x, y, z));
-          if (mesh.indices.length === 0) throw new Error("SDF 表面未捕捉到任何面（分辨率过小或模型过薄）");
+          if (mesh.indices.length === 0) throw new Error(SURFACE_EMPTY_MSG);
           if (q.get("texture") !== "0") texture = buildTextureFromMesh(mesh);
         } else {
           mesh = buildMesh(grid.coords(), hexAt);
