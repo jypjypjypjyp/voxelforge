@@ -57,3 +57,7 @@ skill 教模型用 `voxelforge tools` 发现能力、`voxelforge tool <file> <na
 - **script() 沙箱**：`box/sphere/cylinder/line` 区域要求**完全在界内**（越界整体报错并自动回滚），`set` 越界同样报错；`translate/paint/erase` 沿用区域操作语义（源区域越界静默裁剪，translate 目标出界/被占的体素被丢弃），`unset` 越界为无操作。
 - **render_png 坐标参照层默认策略**：单视图（`view`/`yaw+pitch`）默认开启地面参照层（红 X 轴 / 蓝 Z 轴刻度），`views:"multi"` 合成图默认关闭（避免轴红线与 highlight 红框语义冲突）；两种情况都可用 `axes` 参数显式覆盖。
 - **调色板 255 色上限 + paint 防幻影**：调色板最多 255 色，写满后需复用已有颜色或用 paint 换色；`paint` 的 `from` 参数是防幻影过滤——指定的 `from` 颜色若不在调色板中会直接报错（而不是静默零换色），省略 `from` 则对区域内全部换色。
+
+## License
+
+MIT © 2026 yupeng.jia —— 详见 [LICENSE](./LICENSE)。

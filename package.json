@@ -2,6 +2,20 @@
   "name": "voxelforge",
   "version": "0.1.0",
   "description": "LLM-native 3D voxel modeling: core + skill/CLI + web viewer",
+  "license": "MIT",
+  "keywords": [
+    "voxel",
+    "voxel-art",
+    "3d",
+    "mesh",
+    "sdf",
+    "surface-nets",
+    "glb",
+    "gltf",
+    "llm",
+    "cli",
+    "procedural"
+  ],
   "type": "module",
   "engines": {
     "node": ">=20"
