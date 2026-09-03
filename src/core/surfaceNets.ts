@@ -12,31 +12,48 @@ const EDGES: Array<[number, number]> = [
 ];
 
 export function surfaceNets(field: SdfField, res: number, colorAt: (x: number, y: number, z: number) => [number, number, number]): MeshData {
-  const [sx, sy, sz] = field.size;
-  const maxA = Math.max(sx, sy, sz);
+  // 世界范围 = 完整体素网格（场可能被 bbox 裁剪，origin 负责定位）
+  const ws = field.worldSize ?? field.size;
+  const maxA = Math.max(ws[0], ws[1], ws[2]);
   const clampV = (v: number) => Math.min(Math.max(v, 1), 256);
-  const ox = clampV(Math.round((res * sx) / maxA));
-  const oy = clampV(Math.round((res * sy) / maxA));
-  const oz = clampV(Math.round((res * sz) / maxA));
+  const ox = clampV(Math.round((res * ws[0]) / maxA));
+  const oy = clampV(Math.round((res * ws[1]) / maxA));
+  const oz = clampV(Math.round((res * ws[2]) / maxA));
   const nx = ox + 1, ny = oy + 1, nz = oz + 1;
-  const csx = sx / ox, csy = sy / oy, csz = sz / oz;
+  const csx = ws[0] / ox, csy = ws[1] / oy, csz = ws[2] / oz;
 
   const NI = (i: number, j: number, k: number) => i + j * nx + k * nx * ny;
   const nodeField = new Float32Array(nx * ny * nz);
+  // 活跃 cell（8 角点变号）：nodeField 填充时滚动检查——node(i,j,k) 写完即查 cell(i-1,j-1,k-1)
+  const active: number[] = [];
   for (let k = 0; k < nz; k++)
     for (let j = 0; j < ny; j++)
-      for (let i = 0; i < nx; i++)
-        nodeField[NI(i, j, k)] = sampleField(field, i * csx, j * csy, k * csz);
+      for (let i = 0; i < nx; i++) {
+        const v = sampleField(field, i * csx, j * csy, k * csz);
+        nodeField[NI(i, j, k)] = v;
+        if (i > 0 && j > 0 && k > 0) {
+          // cell (i-1,j-1,k-1) 的 8 角点此刻全部就绪
+          const a = i - 1, b = j - 1, c = k - 1;
+          let hasIn = false, hasOut = false;
+          for (let q = 0; q < 8; q++) {
+            const cr = CORN[q];
+            if (nodeField[NI(a + cr[0], b + cr[1], c + cr[2])] < 0) hasIn = true; else hasOut = true;
+            if (hasIn && hasOut) { active.push(a + b * ox + c * ox * oy); break; }
+          }
+        }
+      }
 
-  const inside = (v: number) => v < 0;
   const pos: number[] = [], nor: number[] = [], col: number[] = [];
   const vertexAt = new Int32Array(ox * oy * oz).fill(-1);
 
-  const gradAt = (wx: number, wy: number, wz: number): [number, number, number] => {
-    const e = 0.5;
-    const gx = sampleField(field, wx + e, wy, wz) - sampleField(field, wx - e, wy, wz);
-    const gy = sampleField(field, wx, wy + e, wz) - sampleField(field, wx, wy - e, wz);
-    const gz = sampleField(field, wx, wy, wz + e) - sampleField(field, wx, wy, wz - e);
+  // 法线：nodeField 中心差分（数据已采样在手，免 6 次三线性重采样）
+  const gradAt = (i: number, j: number, k: number): [number, number, number] => {
+    const i0 = i > 0 ? i - 1 : i, i1 = i < ox ? i + 1 : i;
+    const j0 = j > 0 ? j - 1 : j, j1 = j < oy ? j + 1 : j;
+    const k0 = k > 0 ? k - 1 : k, k1 = k < oz ? k + 1 : k;
+    const gx = nodeField[NI(i1, j, k)] - nodeField[NI(i0, j, k)];
+    const gy = nodeField[NI(i, j1, k)] - nodeField[NI(i, j0, k)];
+    const gz = nodeField[NI(i, j, k1)] - nodeField[NI(i, j, k0)];
     const L = Math.hypot(gx, gy, gz) || 1;
     return [gx / L, gy / L, gz / L];
   };
@@ -62,7 +79,7 @@ export function surfaceNets(field: SdfField, res: number, colorAt: (x: number, y
     if (!cnt) return;
     const nodeX = sumX / cnt, nodeY = sumY / cnt, nodeZ = sumZ / cnt;
     const wx = nodeX * csx, wy = nodeY * csy, wz = nodeZ * csz;
-    const [gnx, gny, gnz] = gradAt(wx, wy, wz);
+    const [gnx, gny, gnz] = gradAt(i, j, k);
     const [r, g, b] = colorAt(wx, wy, wz);
     vertexAt[cIdx] = pos.length / 3;
     pos.push(wx, wy, wz);
@@ -70,59 +87,63 @@ export function surfaceNets(field: SdfField, res: number, colorAt: (x: number, y
     col.push(r, g, b);
   };
 
+  const inside = (v: number) => v < 0;
   const idxArr: number[] = [];
   const pushQuad = (v0: number, v1: number, v2: number, v3: number): void => {
-    const P = (v: number) => [pos[3 * v], pos[3 * v + 1], pos[3 * v + 2]];
-    const p0 = P(v0), p1 = P(v1), p2 = P(v2);
-    const e1 = [p1[0] - p0[0], p1[1] - p0[1], p1[2] - p0[2]];
-    const e2 = [p2[0] - p0[0], p2[1] - p0[1], p2[2] - p0[2]];
-    const ng = e1[1] * e2[2] - e1[2] * e2[1];
-    const ngY = e1[2] * e2[0] - e1[0] * e2[2];
-    const ngZ = e1[0] * e2[1] - e1[1] * e2[0];
-    const na = [nor[3 * v0] + nor[3 * v1] + nor[3 * v2] + nor[3 * v3],
-      nor[3 * v0 + 1] + nor[3 * v1 + 1] + nor[3 * v2 + 1] + nor[3 * v3 + 1],
-      nor[3 * v0 + 2] + nor[3 * v1 + 2] + nor[3 * v2 + 2] + nor[3 * v3 + 2]];
-    const dot = ng * na[0] + ngY * na[1] + ngZ * na[2];
+    const p0x = pos[3 * v0], p0y = pos[3 * v0 + 1], p0z = pos[3 * v0 + 2];
+    const p1x = pos[3 * v1], p1y = pos[3 * v1 + 1], p1z = pos[3 * v1 + 2];
+    const p2x = pos[3 * v2], p2y = pos[3 * v2 + 1], p2z = pos[3 * v2 + 2];
+    const e1x = p1x - p0x, e1y = p1y - p0y, e1z = p1z - p0z;
+    const e2x = p2x - p0x, e2y = p2y - p0y, e2z = p2z - p0z;
+    const ng = e1y * e2z - e1z * e2y;
+    const ngY = e1z * e2x - e1x * e2z;
+    const ngZ = e1x * e2y - e1y * e2x;
+    const na0 = nor[3 * v0] + nor[3 * v1] + nor[3 * v2] + nor[3 * v3];
+    const na1 = nor[3 * v0 + 1] + nor[3 * v1 + 1] + nor[3 * v2 + 1] + nor[3 * v3 + 1];
+    const na2 = nor[3 * v0 + 2] + nor[3 * v1 + 2] + nor[3 * v2 + 2] + nor[3 * v3 + 2];
+    const dot = ng * na0 + ngY * na1 + ngZ * na2;
     if (dot < 0) { idxArr.push(v0, v3, v2, v0, v2, v1); }
     else { idxArr.push(v0, v1, v2, v0, v2, v3); }
   };
 
-  // X 边 (a,b,c)-(a+1,b,c)：cross 时 4 cells (a,b-1,c-1)(a,b-1,c)(a,b,c)(a,b,c-1)
-  for (let a = 0; a < ox; a++)
-    for (let b = 1; b < oy; b++)
-      for (let c = 1; c < oz; c++) {
-        const fa = nodeField[NI(a, b, c)], fb = nodeField[NI(a + 1, b, c)];
-        if (inside(fa) === inside(fb)) continue;
-        cellVertices(a, b - 1, c - 1); cellVertices(a, b - 1, c); cellVertices(a, b, c); cellVertices(a, b, c - 1);
-        const q = [vertexAt[a + (b - 1) * ox + (c - 1) * ox * oy], vertexAt[a + (b - 1) * ox + c * ox * oy],
-          vertexAt[a + b * ox + c * ox * oy], vertexAt[a + b * ox + (c - 1) * ox * oy]];
-        if (q.some((x) => x < 0)) continue;
-        pushQuad(q[0], q[1], q[2], q[3]);
+  // 每条变号边恰好由其"所有者 cell"发射一次（边的最小角所在 cell）：
+  //   X 边 (a,b,c)-(a+1,b,c)（b,c≥1）→ owner (a,b-1,c-1)
+  //   Y 边 (a,b,c)-(a,b+1,c)（a,c≥1）→ owner (a-1,b,c-1)
+  //   Z 边 (a,b,c)-(a,b,c+1)（a,b≥1）→ owner (a-1,b-1,c)
+  // 活跃 cell 必含其 owner 边的两端角点 → 变号边的 owner 必活跃，遍历活跃集即可无遗漏无重复。
+  for (const cIdx of active) {
+    const i = cIdx % ox, j = Math.floor(cIdx / ox) % oy, k = Math.floor(cIdx / (ox * oy));
+    // X 边 (i, j+1, k+1)：cells (i,j,k)(i,j+1,k)(i,j+1,k+1)(i,j,k+1)
+    if (j + 1 <= oy - 1 && k + 1 <= oz - 1) {
+      const fa = nodeField[NI(i, j + 1, k + 1)], fb = nodeField[NI(i + 1, j + 1, k + 1)];
+      if (inside(fa) !== inside(fb)) {
+        cellVertices(i, j, k); cellVertices(i, j + 1, k); cellVertices(i, j + 1, k + 1); cellVertices(i, j, k + 1);
+        const q = [vertexAt[cIdx], vertexAt[i + (j + 1) * ox + k * ox * oy],
+          vertexAt[i + (j + 1) * ox + (k + 1) * ox * oy], vertexAt[i + j * ox + (k + 1) * ox * oy]];
+        if (!q.some((x) => x < 0)) pushQuad(q[0], q[1], q[2], q[3]);
       }
-  // Y 边 (a,b,c)-(a,b+1,c)：cells (a-1,b,c-1)(a-1,b,c)(a,b,c)(a,b,c-1)
-  for (let b = 0; b < oy; b++)
-    for (let a = 1; a < ox; a++)
-      for (let c = 1; c < oz; c++) {
-        const fa = nodeField[NI(a, b, c)], fb = nodeField[NI(a, b + 1, c)];
-        if (inside(fa) === inside(fb)) continue;
-        cellVertices(a - 1, b, c - 1); cellVertices(a - 1, b, c); cellVertices(a, b, c); cellVertices(a, b, c - 1);
-        const q = [vertexAt[(a - 1) + b * ox + (c - 1) * ox * oy], vertexAt[(a - 1) + b * ox + c * ox * oy],
-          vertexAt[a + b * ox + c * ox * oy], vertexAt[a + b * ox + (c - 1) * ox * oy]];
-        if (q.some((x) => x < 0)) continue;
-        pushQuad(q[0], q[1], q[2], q[3]);
+    }
+    // Y 边 (i+1, j, k+1)：cells (i,j,k)(i,j,k+1)(i+1,j,k+1)(i+1,j,k)
+    if (i + 1 <= ox - 1 && k + 1 <= oz - 1) {
+      const fa = nodeField[NI(i + 1, j, k + 1)], fb = nodeField[NI(i + 1, j + 1, k + 1)];
+      if (inside(fa) !== inside(fb)) {
+        cellVertices(i, j, k); cellVertices(i, j, k + 1); cellVertices(i + 1, j, k + 1); cellVertices(i + 1, j, k);
+        const q = [vertexAt[cIdx], vertexAt[i + j * ox + (k + 1) * ox * oy],
+          vertexAt[(i + 1) + j * ox + (k + 1) * ox * oy], vertexAt[(i + 1) + j * ox + k * ox * oy]];
+        if (!q.some((x) => x < 0)) pushQuad(q[0], q[1], q[2], q[3]);
       }
-  // Z 边 (a,b,c)-(a,b,c+1)：cells (a-1,b-1,c)(a-1,b,c)(a,b,c)(a,b-1,c)
-  for (let c = 0; c < oz; c++)
-    for (let a = 1; a < ox; a++)
-      for (let b = 1; b < oy; b++) {
-        const fa = nodeField[NI(a, b, c)], fb = nodeField[NI(a, b, c + 1)];
-        if (inside(fa) === inside(fb)) continue;
-        cellVertices(a - 1, b - 1, c); cellVertices(a - 1, b, c); cellVertices(a, b, c); cellVertices(a, b - 1, c);
-        const q = [vertexAt[(a - 1) + (b - 1) * ox + c * ox * oy], vertexAt[(a - 1) + b * ox + c * ox * oy],
-          vertexAt[a + b * ox + c * ox * oy], vertexAt[a + (b - 1) * ox + c * ox * oy]];
-        if (q.some((x) => x < 0)) continue;
-        pushQuad(q[0], q[1], q[2], q[3]);
+    }
+    // Z 边 (i+1, j+1, k)
+    if (i + 1 <= ox - 1 && j + 1 <= oy - 1) {
+      const fa = nodeField[NI(i + 1, j + 1, k)], fb = nodeField[NI(i + 1, j + 1, k + 1)];
+      if (inside(fa) !== inside(fb)) {
+        cellVertices(i, j, k); cellVertices(i + 1, j, k); cellVertices(i + 1, j + 1, k); cellVertices(i, j + 1, k);
+        const q = [vertexAt[cIdx], vertexAt[(i + 1) + j * ox + k * ox * oy],
+          vertexAt[(i + 1) + (j + 1) * ox + k * ox * oy], vertexAt[i + (j + 1) * ox + k * ox * oy]];
+        if (!q.some((x) => x < 0)) pushQuad(q[0], q[1], q[2], q[3]);
       }
+    }
+  }
 
   return {
     positions: new Float32Array(pos),

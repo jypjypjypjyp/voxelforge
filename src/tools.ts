@@ -13,9 +13,9 @@ import { sliceAscii } from "./core/slice.js";
 import { checkGrid, formatCheck } from "./core/check.js";
 import { exportGlb, verifyGlb } from "./core/export/glb.js";
 import { buildMesh, hexToRgb01 } from "./core/export/mesh.js";
-import { computeSignedDistance } from "./core/sdf.js";
+import { buildSignedField } from "./core/sdf.js";
 import { surfaceNets, signedVolume, bboxOf } from "./core/surfaceNets.js";
-import { sampleVoxelColor } from "./core/color.js";
+import { makeDenseColorSampler } from "./core/color.js";
 import { exportVox, verifyVox } from "./core/export/vox.js";
 import { encodePng } from "./core/export/png.js";
 import { gridSource } from "./core/render/raycast.js";
@@ -274,11 +274,16 @@ export class ForgeSession {
         const gsize = this.grid.size;
         const maxAxis = Math.max(gsize[0], gsize[1], gsize[2]);
         const res = a.resolution ?? maxAxis;
-        const field = computeSignedDistance(this.grid, { smooth: a.smooth ?? 0 });
-        const colorAt = (x: number, y: number, z: number): [number, number, number] => {
-          if (a.color !== undefined) { const c = String(a.color); Palette.normalize(c); return hexToRgb01(c); }
-          return sampleVoxelColor(this.grid, (i) => this.palette.hexOf(i) ?? "#888888", x, y, z);
-        };
+        const { field, idx } = buildSignedField(this.grid, { smooth: a.smooth ?? 0 });
+        let colorAt: (x: number, y: number, z: number) => [number, number, number];
+        if (a.color !== undefined) {
+          const c = String(a.color);
+          Palette.normalize(c);
+          const rgb = hexToRgb01(c);
+          colorAt = () => rgb;
+        } else {
+          colorAt = makeDenseColorSampler(field, idx, (i) => this.palette.hexOf(i) ?? "#888888");
+        }
         const mesh = surfaceNets(field, res, colorAt);
         if (mesh.indices.length === 0) throw new Error("SDF 表面未捕捉到任何面（模型可能占满/全空，或分辨率过小）");
         const buf = exportGlb(mesh);

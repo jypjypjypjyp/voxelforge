@@ -81,4 +81,34 @@ describe("surfaceNets", () => {
     const bb = bboxOf(m);
     expect(bb.max[0] - bb.min[0]).toBeGreaterThan(8); // 形状仍在（未塌缩）
   });
+
+  it("球体（大量对角接触+薄曲面）水密且体积≈球", () => {
+    const g = new SparseVoxelGrid([24, 24, 24]);
+    for (let x = 0; x < 24; x++) for (let y = 0; y < 24; y++) for (let z = 0; z < 24; z++) {
+      const dx = x - 11.5, dy = y - 11.5, dz = z - 11.5;
+      if (dx * dx + dy * dy + dz * dz <= 7 * 7) g.set(x, y, z, 1);
+    }
+    const f = computeSignedDistance(g);
+    const m = surfaceNets(f, 24, () => [1, 0, 0]);
+    const count = new Map<string, number>();
+    const key = (a: number, b: number) => (a < b ? `${a}-${b}` : `${b}-${a}`);
+    for (let i = 0; i < m.indices.length; i += 3) {
+      const a = m.indices[i], b = m.indices[i + 1], c = m.indices[i + 2];
+      for (const [u, v] of [[a, b], [b, c], [c, a]] as Array<[number, number]>) {
+        const k = key(u, v);
+        count.set(k, (count.get(k) ?? 0) + 1);
+      }
+    }
+    for (const [, cnt] of count) expect(cnt).toBe(2); // 无重复 quad（活跃枚举恰好一次）
+    expect(Math.abs(signedVolume(m) - (4 / 3) * Math.PI * 343) / ((4 / 3) * Math.PI * 343)).toBeLessThan(0.2);
+  });
+
+  it("网格范围跨完整 worldSize（裁剪场不改变世界坐标）", () => {
+    const g = boxGrid([32, 32, 32], 20, 20, 20, 27, 27, 27);
+    const f = computeSignedDistance(g);
+    const m = surfaceNets(f, 32, () => [1, 0, 0]);
+    const bb = bboxOf(m);
+    expect(bb.min[0]).toBeGreaterThan(19.4); expect(bb.min[0]).toBeLessThan(20.6);
+    expect(bb.max[0]).toBeGreaterThan(26.9); expect(bb.max[0]).toBeLessThan(28.1);
+  });
 });
