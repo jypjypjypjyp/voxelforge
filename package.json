@@ -1,6 +1,6 @@
 {
   "name": "voxelforge",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "LLM-native 3D voxel modeling: core + skill/CLI + web viewer",
   "license": "MIT",
   "keywords": [
