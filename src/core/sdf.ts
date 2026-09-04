@@ -105,11 +105,13 @@ export function buildSignedField(grid: SparseVoxelGrid, opts: { smooth?: number 
   const [wx, wy, wz] = grid.size;
   const smooth = opts.smooth ?? 0;
   // pad：smooth>0 时保证零穿越面距场边界 > 平滑影响半径（boxBlur 半径 1 × smooth 次）
+  // 界外=空气是公理：pad 允许越过世界网格边界（origin 可为负）。若按世界边界裁剪，
+  // 贴边模型的世界边界层无异相邻居 → EDT 置 INF → 采样 clamp 回负值区 → 贴边侧壁静默丢面。
   const pad = smooth > 0 ? smooth + 1 : 1;
   const b = grid.bounds();
-  const bx0 = b ? Math.max(0, b[0] - pad) : 0, bx1 = b ? Math.min(wx - 1, b[3] + pad) : wx - 1;
-  const by0 = b ? Math.max(0, b[1] - pad) : 0, by1 = b ? Math.min(wy - 1, b[4] + pad) : wy - 1;
-  const bz0 = b ? Math.max(0, b[2] - pad) : 0, bz1 = b ? Math.min(wz - 1, b[5] + pad) : wz - 1;
+  const bx0 = b ? b[0] - pad : 0, bx1 = b ? b[3] + pad : wx - 1;
+  const by0 = b ? b[1] - pad : 0, by1 = b ? b[4] + pad : wy - 1;
+  const bz0 = b ? b[2] - pad : 0, bz1 = b ? b[5] + pad : wz - 1;
   const sx = bx1 - bx0 + 1, sy = by1 - by0 + 1, sz = bz1 - bz0 + 1;
   const plane = sx * sy, N = sx * sy * sz;
 

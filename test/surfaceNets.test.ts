@@ -111,4 +111,30 @@ describe("surfaceNets", () => {
     expect(bb.min[0]).toBeGreaterThan(19.4); expect(bb.min[0]).toBeLessThan(20.6);
     expect(bb.max[0]).toBeGreaterThan(26.9); expect(bb.max[0]).toBeLessThan(28.1);
   });
+
+  it("贴世界边缘模型水密且体积≈体素（smooth 0/2；回归：贴边侧壁被静默丢弃）", () => {
+    for (const smooth of [0, 2] as const) {
+      for (const [x0, x1] of [[4, 11], [0, 7]] as Array<[number, number]>) { // 贴最大边 / 贴最小边
+        const g = boxGrid([12, 12, 12], x0, 4, 4, x1, 11, 11);
+        const f = computeSignedDistance(g, { smooth });
+        const m = surfaceNets(f, 24, () => [1, 0, 0]);
+        const count = new Map<string, number>();
+        const key = (a: number, b: number) => (a < b ? `${a}-${b}` : `${b}-${a}`);
+        for (let i = 0; i < m.indices.length; i += 3) {
+          const a = m.indices[i], b = m.indices[i + 1], c = m.indices[i + 2];
+          for (const [u, v] of [[a, b], [b, c], [c, a]] as Array<[number, number]>) {
+            const k = key(u, v);
+            count.set(k, (count.get(k) ?? 0) + 1);
+          }
+        }
+        for (const [, cnt] of count) expect(cnt).toBe(2); // 水密：无丢失的边界壳
+        // smooth=2 在低分辨率小盒上有 ~20% 固有平滑收缩（实测与居中摆位一致，非边界问题），
+        // 0.3 容差仍能抓住贴边面丢失造成的 ±50% 体积漂移；smooth=0 保持 0.2 严查
+        expect(Math.abs(signedVolume(m) - 512) / 512).toBeLessThan(smooth === 0 ? 0.2 : 0.3);
+        const bb = bboxOf(m);
+        if (x0 === 0) { expect(bb.min[0]).toBeGreaterThan(-0.6); expect(bb.min[0]).toBeLessThan(0.6); }
+        else { expect(bb.max[0]).toBeGreaterThan(11.4); expect(bb.max[0]).toBeLessThan(12.6); }
+      }
+    }
+  });
 });

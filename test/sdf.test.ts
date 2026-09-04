@@ -54,4 +54,13 @@ describe("computeSignedDistance", () => {
     expect(sampleField(f, 26.5, 23, 24)).toBeGreaterThan(0); // 紧贴盒外
     expect(sampleField(f, 0.5, 0.5, 0.5)).toBeGreaterThan(0); // 远角平台期仍为正（不越零）
   });
+
+  it("贴世界边缘：界外按空气处理（场允许越过世界边界，不 clamp 吞壳）", () => {
+    // 盒贴 x/y/z 最大边缘（cells 4..11，world 12）：+x 侧界外 cell 12 须当作空气参与 EDT
+    const g = boxGrid([12, 12, 12], 4, 4, 4, 11, 11, 11);
+    const f = computeSignedDistance(g);
+    expect(f.size[0]).toBe(10); // bbox 8 + 两侧 pad 1；+x 侧越过世界边界 1 格
+    expect(sampleField(f, 11.6, 8, 8)).toBeLessThan(0);    // 贴边内侧为负
+    expect(sampleField(f, 12.4, 8, 8)).toBeGreaterThan(0); // 界外为正（此前被 clamp 成深负 → 丢面）
+  });
 });
